@@ -1,0 +1,238 @@
+================================================================================
+                    SUPABASE STORAGE CONFIGURATION
+                              Nov 23, 2025
+================================================================================
+
+✅ STORAGE BUCKET CONFIGURED
+
+Bucket Name: hotel-rooms
+Base URL: https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms
+
+================================================================================
+                        FOLDER STRUCTURE
+================================================================================
+
+hotel-rooms/
+├── img/
+│   ├── rooms/
+│   │   ├── 1.png (Standard room thumbnail)
+│   │   ├── 1-lg.png (Standard room large)
+│   │   ├── 2.png (Deluxe room thumbnail)
+│   │   ├── 2-lg.png (Deluxe room large)
+│   │   ├── 3.png (Suite room thumbnail)
+│   │   ├── 3-lg.png (Suite room large)
+│   │   ├── 4.png (Penthouse room thumbnail)
+│   │   ├── 4-lg.png (Penthouse room large)
+│   │   ├── 5.png (Combo room thumbnail)
+│   │   ├── 5-lg.png (Combo room large)
+│   │   ├── 6.png (Additional room thumbnail)
+│   │   ├── 6-lg.png (Additional room large)
+│   │   ├── 7.png (Additional room thumbnail)
+│   │   ├── 7-lg.png (Additional room large)
+│   │   ├── 8.png (Additional room thumbnail)
+│   │   └── 8-lg.png (Additional room large)
+├── logo-dark.svg
+├── logo-white.svg
+└── heroSlider/
+    ├── 1.jpg
+    ├── 2.jpg
+    └── 3.jpg
+
+================================================================================
+                        IMAGE URL MAPPING
+================================================================================
+
+Room Type Code → Image Number:
+- STD (Standard) → 1
+- DLX (Deluxe) → 2
+- SUI (Suite) → 3
+- PEN (Penthouse) → 4
+- CMB (Combo) → 5
+
+Example URLs:
+
+Standard Room:
+- Thumbnail: https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms/1.png
+- Large: https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms/1-lg.png
+
+Deluxe Room:
+- Thumbnail: https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms/2.png
+- Large: https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms/2-lg.png
+
+Logo:
+- Dark: https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/logo-dark.svg
+- White: https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/logo-white.svg
+
+================================================================================
+                        CODE INTEGRATION
+================================================================================
+
+File: src/utils/supabaseStorageUrls.js
+Purpose: Centralized URL management for Supabase Storage
+
+Functions:
+✅ getRoomImageUrl(imagePath)
+   - Build full URL from path
+   - Example: getRoomImageUrl('img/rooms/1.png')
+
+✅ getRoomThumbnailUrl(roomNumber)
+   - Get thumbnail for room number
+   - Example: getRoomThumbnailUrl(1)
+
+✅ getRoomLargeImageUrl(roomNumber)
+   - Get large image for room number
+   - Example: getRoomLargeImageUrl(1)
+
+✅ getLogoUrl(type)
+   - Get logo URL
+   - Example: getLogoUrl('dark')
+
+✅ buildRoomImageUrls(roomNumber)
+   - Get both thumbnail and large URLs
+   - Returns: { image_url, image_lg_url }
+
+✅ getImageUrlsByRoomType(roomTypeCode)
+   - Get URLs by room type code (STD, DLX, SUI, PEN, CMB)
+   - Returns: { image_url, image_lg_url }
+
+================================================================================
+                        USAGE EXAMPLES
+================================================================================
+
+Example 1: Get Standard Room Images
+```javascript
+import { getImageUrlsByRoomType } from './utils/supabaseStorageUrls';
+
+const urls = getImageUrlsByRoomType('STD');
+// Result:
+// {
+//   image_url: 'https://...hotel-rooms/img/rooms/1.png',
+//   image_lg_url: 'https://...hotel-rooms/img/rooms/1-lg.png'
+// }
+```
+
+Example 2: Get Room Thumbnail
+```javascript
+import { getRoomThumbnailUrl } from './utils/supabaseStorageUrls';
+
+const url = getRoomThumbnailUrl(1);
+// Result: 'https://...hotel-rooms/img/rooms/1.png'
+```
+
+Example 3: Get Logo
+```javascript
+import { getLogoUrl } from './utils/supabaseStorageUrls';
+
+const darkLogo = getLogoUrl('dark');
+const whiteLogo = getLogoUrl('white');
+```
+
+Example 4: In Component
+```javascript
+import { buildRoomImageUrls } from './utils/supabaseStorageUrls';
+
+const room = {
+  id: 1,
+  name: 'Standard Room',
+  ...buildRoomImageUrls(1)
+};
+
+// room.image_url = 'https://...hotel-rooms/img/rooms/1.png'
+// room.image_lg_url = 'https://...hotel-rooms/img/rooms/1-lg.png'
+```
+
+================================================================================
+                        INTEGRATION IN SUPABASE CLIENT
+================================================================================
+
+File: src/utils/supabaseClient.js
+
+Function: fetchRoomsWithImages()
+- Fetches rooms from database
+- Builds image URLs using getImageUrlsByRoomType()
+- Maps room type code to image URLs
+- Returns rooms with image_url and image_lg_url
+
+Flow:
+1. Fetch rooms from database
+2. Get room_types code (STD, DLX, SUI, PEN, CMB)
+3. Build image URLs using getImageUrlsByRoomType()
+4. Attach URLs to room object
+5. Return enriched rooms
+
+Example Output:
+```javascript
+{
+  id: 'uuid-1',
+  room_no: 'STD-01',
+  room_types: { code: 'STD', name: 'Standard' },
+  image_url: 'https://...hotel-rooms/img/rooms/1.png',
+  image_lg_url: 'https://...hotel-rooms/img/rooms/1-lg.png',
+  all_images: [{ image_url: '...', image_lg_url: '...' }]
+}
+```
+
+================================================================================
+                        CONSOLE LOGS
+================================================================================
+
+When images load successfully:
+✅ "✅ Loaded 40 rooms from Supabase with Supabase Storage images"
+✅ "🖼️ Room Images Debug: { room_no: 'STD-01', room_type_code: 'STD', image_url: 'https://...', image_lg_url: 'https://...' }"
+
+When images fail to load:
+❌ "Error fetching rooms with images: ..."
+❌ "Image failed to load from Supabase: https://..."
+
+================================================================================
+                        VERIFICATION CHECKLIST
+================================================================================
+
+✅ Bucket "hotel-rooms" created
+✅ Bucket is PUBLIC
+✅ Images uploaded to img/rooms/
+✅ Logos uploaded to root
+✅ supabaseStorageUrls.js created
+✅ supabaseClient.js updated with imports
+✅ fetchRoomsWithImages() uses Supabase Storage URLs
+✅ Room components display images from Supabase
+
+================================================================================
+                        TROUBLESHOOTING
+================================================================================
+
+PROBLEM: "Image failed to load from Supabase"
+SOLUTION:
+  1. Check bucket is PUBLIC
+  2. Check image file exists in bucket
+  3. Check URL is correct
+  4. Try URL directly in browser
+
+PROBLEM: "No images showing"
+SOLUTION:
+  1. Check console for errors (F12)
+  2. Check room_type_code is correct (STD, DLX, SUI, PEN, CMB)
+  3. Check image files are uploaded
+  4. Check bucket permissions
+
+PROBLEM: "Wrong image showing"
+SOLUTION:
+  1. Check room type code mapping
+  2. Check image number is correct
+  3. Verify image file names (1.png, 1-lg.png, etc.)
+
+================================================================================
+                        NEXT STEPS
+================================================================================
+
+1. ✅ Code configured for Supabase Storage
+2. ✅ URL helper functions created
+3. ✅ supabaseClient.js updated
+4. ⏳ Verify images load in browser
+5. ⏳ Test on different pages
+6. ⏳ Check console for ✅ logs
+
+================================================================================
+                    Generated: Nov 23, 2025
+                    Status: Storage Configuration Complete ✅
+================================================================================

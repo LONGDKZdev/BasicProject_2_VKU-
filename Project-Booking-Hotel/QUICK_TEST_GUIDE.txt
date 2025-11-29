@@ -1,0 +1,203 @@
+================================================================================
+                        QUICK TEST GUIDE
+                              Nov 23, 2025
+================================================================================
+
+✅ CODE READY FOR TESTING
+
+All code changes completed:
+- ✅ Supabase Storage URLs configured
+- ✅ Image URL helpers created
+- ✅ supabaseClient.js updated
+- ✅ No local assets dependency
+
+================================================================================
+                        HOW TO TEST
+================================================================================
+
+STEP 1: Start Development Server
+```bash
+npm run dev
+```
+
+STEP 2: Open Browser Console
+- Press F12
+- Click "Console" tab
+
+STEP 3: Check Console Logs
+
+Look for these SUCCESS logs:
+✅ "🔐 Supabase URL: https://sxteddkozzqniebfstag..."
+✅ "✅ Loaded 40 rooms from Supabase with Supabase Storage images"
+✅ "🖼️ Room Images Debug: { room_no: 'STD-01', room_type_code: 'STD', image_url: 'https://...', image_lg_url: 'https://...' }"
+
+Look for these ERROR logs (if any):
+❌ "Error fetching rooms with images: ..."
+❌ "Image failed to load from Supabase: ..."
+
+STEP 4: Check Network Tab
+- Press F12 → Network tab
+- Look for requests to: sxteddkozzqniebfstag.supabase.co
+- Check image requests to: /storage/v1/object/public/hotel-rooms/
+
+STEP 5: Verify Images Display
+- Go to home page
+- Check if room images display
+- Click on room to see large image
+- All images should load from Supabase Storage
+
+================================================================================
+                        EXPECTED BEHAVIOR
+================================================================================
+
+SCENARIO 1: Supabase Connected + Images Uploaded
+✅ Rooms load from Supabase database
+✅ Images load from Supabase Storage
+✅ Console shows ✅ logs
+✅ No placeholder images shown
+
+SCENARIO 2: Supabase Connected + Images NOT Uploaded
+✅ Rooms load from Supabase database
+⚠️ Images show placeholder (SVG)
+❌ Console shows "Image failed to load from Supabase"
+⚠️ This is expected - just need to upload images
+
+SCENARIO 3: Supabase NOT Connected
+⚠️ Falls back to local seed data
+⚠️ Images show placeholder (SVG)
+⚠️ Console shows "Supabase unavailable, using local seed data"
+
+================================================================================
+                        IMAGE URL STRUCTURE
+================================================================================
+
+Your Supabase Storage:
+https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms
+
+Room Images:
+- Standard (STD): img/rooms/1.png, img/rooms/1-lg.png
+- Deluxe (DLX): img/rooms/2.png, img/rooms/2-lg.png
+- Suite (SUI): img/rooms/3.png, img/rooms/3-lg.png
+- Penthouse (PEN): img/rooms/4.png, img/rooms/4-lg.png
+- Combo (CMB): img/rooms/5.png, img/rooms/5-lg.png
+
+Full URLs:
+https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms/1.png
+https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms/1-lg.png
+
+================================================================================
+                        TESTING CHECKLIST
+================================================================================
+
+CONSOLE LOGS:
+☐ Check for ✅ "Loaded X rooms from Supabase"
+☐ Check for ✅ "Room Images Debug" log
+☐ Check for ❌ errors (if any)
+
+IMAGES:
+☐ Room list page shows images
+☐ Room details page shows large image
+☐ Images load from Supabase Storage
+☐ No 404 errors in Network tab
+
+DATABASE:
+☐ Rooms loaded from Supabase
+☐ Room types have correct codes (STD, DLX, SUI, PEN, CMB)
+☐ Amenities loaded
+☐ Prices loaded
+
+FEATURES:
+☐ Can create booking
+☐ Can add review
+☐ Can make restaurant booking
+☐ Can make spa booking
+☐ Data saves to Supabase
+
+OFFLINE MODE:
+☐ Disable network (F12 → Network → Offline)
+☐ Create booking → saves to localStorage
+☐ Enable network → data syncs to Supabase
+
+================================================================================
+                        TROUBLESHOOTING
+================================================================================
+
+PROBLEM: "Supabase unavailable, using local seed data"
+SOLUTION:
+  1. Check internet connection
+  2. Check Supabase status: https://status.supabase.com
+  3. Check VITE_SUPABASE_URL in .env
+  4. Check VITE_SUPABASE_ANON_KEY in .env
+
+PROBLEM: "Image failed to load from Supabase"
+SOLUTION:
+  1. Check bucket "hotel-rooms" exists
+  2. Check bucket is PUBLIC
+  3. Check image files are uploaded
+  4. Check file names: 1.png, 1-lg.png, etc.
+  5. Try URL directly in browser
+
+PROBLEM: "No rooms showing"
+SOLUTION:
+  1. Check Supabase database has rooms
+  2. Check SQL scripts were run
+  3. Check console for errors
+  4. Check network requests
+
+PROBLEM: "Wrong images showing"
+SOLUTION:
+  1. Check room type codes (STD, DLX, SUI, PEN, CMB)
+  2. Check image mapping in supabaseStorageUrls.js
+  3. Verify image file names
+
+================================================================================
+                        CONSOLE COMMANDS
+================================================================================
+
+Test image URL generation:
+```javascript
+// In browser console
+import { getImageUrlsByRoomType } from './utils/supabaseStorageUrls.js';
+
+// Get Standard room images
+const urls = getImageUrlsByRoomType('STD');
+console.log(urls);
+
+// Get Deluxe room images
+const urls2 = getImageUrlsByRoomType('DLX');
+console.log(urls2);
+```
+
+Check room data:
+```javascript
+// In browser console
+// Open React DevTools
+// Find RoomContext in Components
+// Check allRooms state
+// Verify image_url and image_lg_url are populated
+```
+
+================================================================================
+                        NEXT STEPS
+================================================================================
+
+1. ✅ Code is ready
+2. ⏳ Start dev server: npm run dev
+3. ⏳ Check console logs
+4. ⏳ Verify images load
+5. ⏳ Test all features
+6. ⏳ Check Supabase Dashboard
+
+================================================================================
+                        FILES TO REFERENCE
+================================================================================
+
+- src/utils/supabaseStorageUrls.js (URL helpers)
+- src/utils/supabaseClient.js (Supabase integration)
+- SUPABASE_STORAGE_CONFIG.txt (Storage configuration)
+- MIGRATION_TO_SUPABASE_COMPLETE.txt (Complete guide)
+
+================================================================================
+                    Generated: Nov 23, 2025
+                    Status: Ready for Testing ✅
+================================================================================

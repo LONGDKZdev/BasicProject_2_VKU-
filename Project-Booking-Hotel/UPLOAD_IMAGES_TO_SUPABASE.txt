@@ -1,0 +1,210 @@
+================================================================================
+                    HOW TO UPLOAD IMAGES TO SUPABASE STORAGE
+                              Nov 23, 2025
+================================================================================
+
+📋 OVERVIEW
+
+Your code is now ready to use Supabase Storage for images!
+You need to:
+1. Create a storage bucket
+2. Upload images
+3. Update room_images table with URLs
+
+================================================================================
+                        STEP 1: CREATE STORAGE BUCKET
+================================================================================
+
+1. Go to https://app.supabase.com
+2. Select your project
+3. Click "Storage" (left sidebar)
+4. Click "Create new bucket"
+5. Name: "room-images"
+6. Make it PUBLIC (so images can be accessed)
+7. Click "Create bucket"
+
+================================================================================
+                        STEP 2: UPLOAD IMAGES
+================================================================================
+
+Option A: Upload via Supabase Dashboard
+
+1. Click on "room-images" bucket
+2. Click "Upload file"
+3. Select image file (e.g., 1.png)
+4. Click "Upload"
+5. Repeat for all images
+
+Images to upload:
+- 1.png, 2.png, 3.png, 4.png, 5.png, 6.png, 7.png, 8.png
+- 1-lg.png, 2-lg.png, 3-lg.png, 4-lg.png, 5-lg.png, 6-lg.png, 7-lg.png, 8-lg.png
+
+Option B: Upload via Code (Supabase SDK)
+
+```javascript
+import { supabase } from './utils/supabaseClient';
+
+const uploadImage = async (file) => {
+  const { data, error } = await supabase.storage
+    .from('room-images')
+    .upload(`${file.name}`, file);
+  
+  if (error) console.error('Upload error:', error);
+  else console.log('✅ Uploaded:', data);
+};
+```
+
+================================================================================
+                        STEP 3: GET PUBLIC URLs
+================================================================================
+
+After uploading, get the public URL:
+
+1. In Supabase Dashboard:
+   - Go to Storage → room-images
+   - Click on image file
+   - Copy the public URL
+
+URL format:
+https://<project-id>.supabase.co/storage/v1/object/public/room-images/1.png
+
+Example:
+https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/1.png
+
+================================================================================
+                        STEP 4: UPDATE room_images TABLE
+================================================================================
+
+Run this SQL on Supabase to insert image URLs:
+
+```sql
+-- Get room_type IDs first
+SELECT id, code FROM public.room_types;
+
+-- Insert images for Standard rooms (STD)
+INSERT INTO public.room_images (room_type_id, image_url, image_lg_url, display_order)
+SELECT 
+  rt.id,
+  'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/1.png',
+  'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/1-lg.png',
+  0
+FROM public.room_types rt
+WHERE rt.code = 'STD'
+ON CONFLICT DO NOTHING;
+
+-- Repeat for other room types:
+-- DLX (Deluxe): 2.png, 2-lg.png
+-- SUI (Suite): 3.png, 3-lg.png
+-- PEN (Penthouse): 4.png, 4-lg.png
+-- CMB (Combo): 5.png, 5-lg.png
+```
+
+Or use this helper function:
+
+```sql
+INSERT INTO public.room_images (room_type_id, image_url, image_lg_url, display_order)
+VALUES
+  ((SELECT id FROM room_types WHERE code='STD'), 
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/1.png',
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/1-lg.png', 0),
+  ((SELECT id FROM room_types WHERE code='DLX'), 
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/2.png',
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/2-lg.png', 0),
+  ((SELECT id FROM room_types WHERE code='SUI'), 
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/3.png',
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/3-lg.png', 0),
+  ((SELECT id FROM room_types WHERE code='PEN'), 
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/4.png',
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/4-lg.png', 0),
+  ((SELECT id FROM room_types WHERE code='CMB'), 
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/5.png',
+   'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/5-lg.png', 0)
+ON CONFLICT DO NOTHING;
+```
+
+================================================================================
+                        STEP 5: VERIFY IMAGES LOAD
+================================================================================
+
+1. Start your app: npm run dev
+2. Open browser console: F12 → Console
+3. Look for these logs:
+
+✅ "🖼️ Fetch Room Images - Result: { count: 5, data: [...] }"
+✅ "✓ Loaded 40 rooms from Supabase with images"
+✅ "🖼️ Room Images Debug: { room_no: 'STD-01', image_url: 'https://...' }"
+
+If you see errors:
+❌ "Error fetching room images: ..."
+❌ "Image failed to load from Supabase: ..."
+
+Then check:
+- Bucket is PUBLIC
+- URLs are correct
+- room_images table has data
+
+================================================================================
+                        TROUBLESHOOTING
+================================================================================
+
+PROBLEM: "Error fetching room images"
+SOLUTION:
+  1. Check bucket exists and is PUBLIC
+  2. Check room_images table has data
+  3. Check room_type_id references are correct
+
+PROBLEM: "Image failed to load from Supabase"
+SOLUTION:
+  1. Check URL is correct
+  2. Check image file exists in bucket
+  3. Check bucket is PUBLIC
+  4. Try URL directly in browser
+
+PROBLEM: "No images showing"
+SOLUTION:
+  1. Check console for errors (F12)
+  2. Check room_images table: SELECT * FROM room_images;
+  3. Check image URLs are valid
+  4. Verify room_type_id matches
+
+================================================================================
+                        QUICK CHECKLIST
+================================================================================
+
+✅ Create storage bucket "room-images"
+✅ Make bucket PUBLIC
+✅ Upload all image files (1.png, 1-lg.png, etc.)
+✅ Get public URLs
+✅ Update room_images table with URLs
+✅ Verify images load in app
+✅ Check console for ✅ logs
+✅ Test on different pages (Room list, Room details)
+
+================================================================================
+                        EXAMPLE URLS
+================================================================================
+
+Your Supabase project: sxteddkozzqniebfstag
+
+Image URLs format:
+https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/1.png
+https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/1-lg.png
+https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/room-images/2.png
+...
+
+================================================================================
+                        NEXT STEPS
+================================================================================
+
+1. Create storage bucket
+2. Upload images
+3. Get public URLs
+4. Update room_images table
+5. Test in app
+6. Verify console logs
+7. All images should load from Supabase! ✅
+
+================================================================================
+                    Generated: Nov 23, 2025
+                    Status: Ready for Image Upload
+================================================================================

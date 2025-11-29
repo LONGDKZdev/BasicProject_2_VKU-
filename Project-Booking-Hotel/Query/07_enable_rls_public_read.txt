@@ -1,0 +1,51 @@
+-- =====================================================
+-- 07_ENABLE_RLS_PUBLIC_READ.SQL
+-- =====================================================
+-- Enable public READ access để app có thể fetch dữ liệu mà không cần auth
+
+-- ========== 1. Create policies để cho phép PUBLIC READ ==========
+-- Room Types - public read
+create policy "Allow public read room_types" on public.room_types
+  for select using (true);
+
+-- Amenities - public read
+create policy "Allow public read amenities" on public.amenities
+  for select using (true);
+
+-- Rooms - public read
+create policy "Allow public read rooms" on public.rooms
+  for select using (true);
+
+-- Room Images - public read
+create policy "Allow public read room_images" on public.room_images
+  for select using (true);
+
+-- Room Reviews - public read
+create policy "Allow public read room_reviews" on public.room_reviews
+  for select using (true);
+
+-- Price Rules - public read
+create policy "Allow public read price_rules" on public.price_rules
+  for select using (true);
+
+-- Promotions - public read
+create policy "Allow public read promotions" on public.promotions
+  for select using (true);
+
+-- ========== 2. Verify policies được tạo ==========
+select tablename, policyname from pg_policies 
+where tablename in ('room_types', 'amenities', 'rooms', 'room_images', 'room_reviews', 'price_rules', 'promotions')
+order by tablename;
+
+-- ========== 3. Test fetch - kiểm tra dữ liệu ==========
+select 'Room Types' as table_name, count(*) as count from public.room_types
+union all
+select 'Rooms', count(*) from public.rooms
+union all
+select 'Amenities', count(*) from public.amenities
+union all
+select 'Room Reviews', count(*) from public.room_reviews
+union all
+select 'Price Rules', count(*) from public.price_rules
+union all
+select 'Promotions', count(*) from public.promotions;

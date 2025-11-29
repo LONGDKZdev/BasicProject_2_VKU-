@@ -1,0 +1,13 @@
+export { default as RoomDetails } from "./RoomDetails";
+export { default as Home } from "./Home";
+export { default as Admin } from "./Admin";
+export { default as Login } from "./Login";
+export { default as Register } from "./Register";
+export { default as ForgotPassword } from "./ForgotPassword";
+export { default as ResetPassword } from "./ResetPassword";
+export { default as RoomsPage } from "./RoomsPage";
+export { default as Contact } from "./Contact";
+export { default as UserDashboard } from "./UserDashboard";
+export { default as RestaurantPage } from "./RestaurantPage";
+export { default as SpaPage } from "./SpaPage";
+export { default as CleanupPage } from "./CleanupPage";

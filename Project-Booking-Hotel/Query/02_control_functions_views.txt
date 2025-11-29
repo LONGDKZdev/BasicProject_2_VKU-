@@ -1,0 +1,35 @@
+-- =========================================
+-- 02_CONTROL_FUNCTIONS_VIEWS.SQL (FINAL)
+-- =========================================
+
+-- Kiểm tra phòng có sẵn sàng trong khoảng ngày [p_start, p_end)
+create or replace function public.is_room_available(p_room_id uuid, p_start date, p_end date)
+returns boolean language sql stable as $$
+  select 
+    -- 1. Phòng phải có status 'available' (hoặc 'cleaning' nếu chấp nhận)
+    (select r.status = 'available'::room_status from public.rooms r where r.id = p_room_id)
+    and
+    -- 2. Không tồn tại booking 'confirmed' hoặc 'checked_in' bị trùng ngày
+    not exists (
+      select 1
+      from public.bookings b
+      join public.booking_items bi on bi.booking_id = b.id
+      where b.status in ('confirmed', 'checked_in')
+        and bi.room_id = p_room_id
+        and daterange(b.check_in, b.check_out) && daterange(p_start, p_end)
+    );
+$$;
+
+-- Bỏ view cũ
+drop view if exists public.available_rooms;
+
+-- Hàm trả về danh sách phòng trống theo ngày VÀ SỐ LƯỢNG KHÁCH
+create or replace function public.get_available_rooms(p_start date, p_end date, p_guests int)
+returns setof public.rooms language sql stable as $$
+  select r.*
+  from public.rooms r
+  join public.room_types rt on r.room_type_id = rt.id
+  where r.status in ('available', 'cleaning')
+    and rt.base_capacity >= p_guests -- Lọc theo sức chứa
+    and public.is_room_available(r.id, p_start, p_end);
+$$;
