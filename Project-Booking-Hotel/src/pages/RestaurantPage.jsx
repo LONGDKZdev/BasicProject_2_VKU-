@@ -4,9 +4,10 @@ import QRPayment from "../components/QRPayment";
 import Invoice from "../components/Invoice";
 import { useBookingContext } from "../context/BookingContext";
 import { useAuth } from "../context/AuthContext";
-import images from "../assets";
-// ⚠️ Room images removed - now use Supabase URLs
-import { getImageUrlsByRoomType } from "../utils/supabaseStorageUrls";
+// ⚠️ Local images removed - now use Supabase URLs
+
+const STORAGE_URL = "https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms";
+const PLACEHOLDER_IMG_MENU = "https://via.placeholder.com/400x300?text=Menu+Image";
 import {
   FaUtensils,
   FaWineGlassAlt,
@@ -19,6 +20,17 @@ import {
 
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect fill='%23ddd' width='300' height='200'/%3E%3Ctext x='50%' y='50%' font-size='14' fill='%23999' text-anchor='middle' dy='.3em'%3EMenu Image%3C/text%3E%3C/svg%3E";
 
+// Helper function to get image for menu items (using Supabase Storage URLs)
+const getMenuItemImage = (id) => {
+  if (!id) return PLACEHOLDER_IMG_MENU;
+  
+  // Cycle through images 1-8 (large version)
+  // Assumes restaurant images match the room images for diversity
+  const imgIndex = (id % 8) === 0 ? 8 : (id % 8);
+  return `${STORAGE_URL}/${imgIndex}-lg.png` || PLACEHOLDER_IMG_MENU;
+};
+
+
 const menuCategories = [
   { id: "appetizers", name: "Appetizers", icon: FaUtensils },
   { id: "mains", name: "Main Courses", icon: FaUtensils },
@@ -26,38 +38,6 @@ const menuCategories = [
   { id: "beverages", name: "Beverages", icon: FaWineGlassAlt },
   { id: "combos", name: "Combo Meals", icon: FaUtensils },
 ];
-
-// Helper function to get image for menu items
-// Uses Supabase Storage URLs based on room types when available
-const getMenuItemImage = (id) => {
-  // Try to map to room types for Supabase images
-  const roomTypeMap = {
-    1: 'STD', 2: 'DLX', 3: 'SUI', 4: 'PEN', 5: 'CMB',
-    6: 'STD', 7: 'DLX', 8: 'SUI', 9: 'PEN', 10: 'CMB',
-    11: 'STD', 12: 'DLX', 13: 'SUI', 14: 'PEN', 15: 'CMB',
-    16: 'STD', 17: 'DLX', 18: 'SUI', 19: 'PEN', 20: 'CMB',
-    21: 'STD',
-  };
-  
-  const roomTypeCode = roomTypeMap[id];
-  if (roomTypeCode) {
-    try {
-      const urls = getImageUrlsByRoomType(roomTypeCode);
-      return urls.image_url || PLACEHOLDER_IMG;
-    } catch (err) {
-      console.warn('Error getting Supabase image:', err);
-    }
-  }
-  
-  // Fallback to local images
-  const localMap = {
-    17: images.Slider1,
-    18: images.Slider2,
-    19: images.Slider3,
-  };
-  
-  return localMap[id] || PLACEHOLDER_IMG;
-};
 
 const menuItems = {
   appetizers: [
@@ -232,7 +212,7 @@ const menuItems = {
       description: "Appetizer, two main courses, dessert, and wine pairing",
       price: 220,
       popular: true,
-      image: images.Slider1,
+      image: getMenuItemImage(22),
       items: [
         "Wagyu Beef Carpaccio",
         "Wagyu Ribeye Steak",
@@ -248,7 +228,7 @@ const menuItems = {
         "Perfect for 4 people: appetizers, mains, desserts, and beverages",
       price: 380,
       popular: true,
-      image: images.Slider2,
+      image: getMenuItemImage(23),
       items: [
         "Truffle Arancini",
         "Lobster Thermidor",
@@ -264,7 +244,7 @@ const menuItems = {
       name: "Seafood Lovers",
       description: "Lobster bisque, sea bass, lobster thermidor, and champagne",
       price: 280,
-      image: images.Slider3,
+      image: getMenuItemImage(24),
       items: [
         "Lobster Bisque",
         "Pan-Seared Sea Bass",
@@ -278,7 +258,7 @@ const menuItems = {
       description:
         "Complete vegetarian menu with seasonal vegetables and risotto",
       price: 120,
-      image: images.Slider1,
+      image: getMenuItemImage(25),
       items: [
         "Vegetarian Risotto",
         "Seasonal Salad",
@@ -292,7 +272,7 @@ const menuItems = {
       description:
         "Quick and elegant lunch combo: appetizer, main, and dessert",
       price: 85,
-      image: images.Slider2,
+      image: getMenuItemImage(26),
       items: [
         "Truffle Arancini",
         "Wagyu Ribeye Steak",
@@ -311,7 +291,7 @@ const chefSpecials = [
     price: 185,
     duration: "2.5 hours",
     includes: ["7 courses", "Wine pairing option", "Chef interaction"],
-    image: images.Slider1,
+    image: getMenuItemImage(27),
   },
   {
     title: "Weekend Brunch",
@@ -324,7 +304,7 @@ const chefSpecials = [
       "Bottomless beverages",
       "Live entertainment",
     ],
-    image: images.Slider2,
+    image: getMenuItemImage(28),
   },
   {
     title: "Private Dining",
@@ -333,7 +313,7 @@ const chefSpecials = [
     price: 250,
     duration: "Custom",
     includes: ["Private room", "Customized menu", "Dedicated service"],
-    image: images.Slider3,
+    image: getMenuItemImage(29),
   },
 ];
 
@@ -450,14 +430,14 @@ const RestaurantPage = () => {
       {/* Hero Section */}
       <section className="relative h-[60vh] min-h-[480px] flex items-center justify-center text-center">
         <img
-          src={images.Slider2}
+          src={`${STORAGE_URL}/2-lg.png`}
           alt="Restaurant interior"
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-black/60" />
         <div className="relative z-10 max-w-3xl px-6 text-white">
           <p className="font-tertiary uppercase tracking-[6px] text-sm mb-4">
-            Adina Hotel &amp; Spa
+            Adina Hotel & Spa
           </p>
           <h1 className="font-primary text-4xl md:text-5xl lg:text-6xl leading-tight mb-6">
             Fine Dining Experience

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogoDark } from '../assets';
 import { FaEnvelope, FaLock, FaUser, FaSpinner, FaGoogle, FaFacebook } from 'react-icons/fa';
 import Toast from '../components/Toast';
+
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -20,7 +21,6 @@ const Register = () => {
   const { register, loginWithOAuth, loading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already logged in
   useEffect(() => {
     if (isAuthenticated()) {
       navigate('/', { replace: true });
@@ -39,7 +39,6 @@ const Register = () => {
     e.preventDefault();
     setError('');
 
-    // Validation
     if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
       setError('Please fill in all fields');
       return;
@@ -89,25 +88,21 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-accent/20 flex items-center justify-center p-4 py-12">
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
       </div>
 
-      {/* Register Card */}
       <div className="relative z-10 w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          {/* Header */}
           <div className="bg-gradient-to-r from-accent to-accent-hover p-8 text-center">
             <div className="flex justify-center mb-4">
-              <LogoDark className="w-[180px] brightness-0 invert" />
+              <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[180px] brightness-0 invert" />
             </div>
             <h1 className="text-2xl font-primary text-white mb-2">Create Account</h1>
             <p className="text-white/90 text-sm">Join us and start booking</p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="p-8 space-y-5">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -115,7 +110,6 @@ const Register = () => {
               </div>
             )}
 
-            {/* Name Input */}
             <div>
               <label className="block text-sm font-semibold mb-2 text-primary">
                 Full Name
@@ -137,7 +131,6 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Email Input */}
             <div>
               <label className="block text-sm font-semibold mb-2 text-primary">
                 Email
@@ -159,7 +152,6 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Password Input */}
             <div>
               <label className="block text-sm font-semibold mb-2 text-primary">
                 Password
@@ -188,7 +180,6 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Confirm Password Input */}
             <div>
               <label className="block text-sm font-semibold mb-2 text-primary">
                 Confirm Password
@@ -217,7 +208,6 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -233,7 +223,6 @@ const Register = () => {
               )}
             </button>
 
-            {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
@@ -243,7 +232,6 @@ const Register = () => {
               </div>
             </div>
 
-            {/* OAuth Buttons */}
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
@@ -266,7 +254,6 @@ const Register = () => {
               </button>
             </div>
 
-            {/* Login Link */}
             <div className="text-center pt-4">
               <p className="text-sm text-gray-600">
                 Already have an account?{' '}
@@ -277,7 +264,6 @@ const Register = () => {
             </div>
           </form>
 
-          {/* Footer */}
           <div className="px-8 py-4 bg-gray-50 border-t border-gray-200 text-center">
             <p className="text-xs text-gray-500">
               © {new Date().getFullYear()} Hotel Booking. All rights reserved.
@@ -298,4 +284,3 @@ const Register = () => {
 };
 
 export default Register;
-

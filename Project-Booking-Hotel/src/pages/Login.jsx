@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogoDark } from '../assets';
 import { FaEnvelope, FaLock, FaSpinner, FaGoogle, FaFacebook } from 'react-icons/fa';
 import Toast from '../components/Toast';
+
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -17,13 +18,11 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Check if this is admin login page
   useEffect(() => {
     const isAdmin = location.pathname === '/admin/login' || location.search.includes('admin=true');
     setIsAdminLogin(isAdmin);
   }, [location]);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (isAuthenticated()) {
       const from = location.state?.from?.pathname || (isAdminLogin ? '/admin' : '/');
@@ -40,7 +39,6 @@ const Login = () => {
       return;
     }
 
-    // Auto-detect admin email or use isAdminLogin flag
     const isAdminEmail = email === 'admin@hotel.com';
     const shouldUseAdminLogin = isAdminLogin || isAdminEmail;
 
@@ -87,19 +85,16 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-accent/20 flex items-center justify-center p-4">
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
       </div>
 
-      {/* Login Card */}
       <div className="relative z-10 w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          {/* Header */}
           <div className="bg-gradient-to-r from-accent to-accent-hover p-8 text-center">
             <div className="flex justify-center mb-4">
-              <LogoDark className="w-[180px] brightness-0 invert" />
+              <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[180px] brightness-0 invert" />
             </div>
             <h1 className="text-2xl font-primary text-white mb-2">
               {isAdminLogin ? 'Admin Login' : 'Sign In'}
@@ -109,7 +104,6 @@ const Login = () => {
             </p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -117,7 +111,6 @@ const Login = () => {
               </div>
             )}
 
-            {/* Email Input */}
             <div>
               <label className="block text-sm font-semibold mb-2 text-primary">
                 Email
@@ -138,7 +131,6 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Password Input */}
             <div>
               <label className="block text-sm font-semibold mb-2 text-primary">
                 Password
@@ -166,7 +158,6 @@ const Login = () => {
               </div>
             </div>
 
-            {/* Remember Me & Forgot Password */}
             <div className="flex items-center justify-between">
               <label className="flex items-center">
                 <input
@@ -180,7 +171,6 @@ const Login = () => {
               </Link>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -196,10 +186,8 @@ const Login = () => {
               )}
             </button>
 
-            {/* OAuth Buttons - Only for user login */}
             {!isAdminLogin && email !== 'admin@hotel.com' && (
               <>
-                {/* Divider */}
                 <div className="relative my-6">
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-gray-300"></div>
@@ -209,7 +197,6 @@ const Login = () => {
                   </div>
                 </div>
 
-                {/* OAuth Buttons */}
                 <div className="grid grid-cols-2 gap-4">
                   <button
                     type="button"
@@ -234,7 +221,6 @@ const Login = () => {
               </>
             )}
 
-            {/* Demo Credentials - Only for admin */}
             {isAdminLogin && (
               <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
                 <p className="text-xs font-semibold text-gray-700 mb-2">Demo Credentials:</p>
@@ -245,7 +231,6 @@ const Login = () => {
               </div>
             )}
 
-            {/* Register Link - Only for user login */}
             {!isAdminLogin && (
               <div className="text-center pt-4">
                 <p className="text-sm text-gray-600">
@@ -258,7 +243,6 @@ const Login = () => {
             )}
           </form>
 
-          {/* Footer */}
           <div className="px-8 py-4 bg-gray-50 border-t border-gray-200 text-center">
             <p className="text-xs text-gray-500">
               © {new Date().getFullYear()} Hotel Booking. All rights reserved.
@@ -279,4 +263,3 @@ const Login = () => {
 };
 
 export default Login;
-

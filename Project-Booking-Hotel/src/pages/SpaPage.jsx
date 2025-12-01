@@ -4,10 +4,11 @@ import QRPayment from '../components/QRPayment';
 import Invoice from '../components/Invoice';
 import { useBookingContext } from '../context/BookingContext';
 import { useAuth } from '../context/AuthContext';
-//import images from '../assets';
-// ⚠️ Room images removed - now use Supabase URLs
-import { getImageUrlsByRoomType } from '../utils/supabaseStorageUrls';
+// ⚠️ Local images removed - now use Supabase URLs
 import { FaSpa, FaClock, FaMapMarkerAlt, FaPhoneAlt, FaStar, FaCheck, FaLeaf, FaWater, FaHandSparkles } from 'react-icons/fa';
+
+const STORAGE_URL = "https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms";
+const PLACEHOLDER_IMG_SERVICE = "https://via.placeholder.com/400x300?text=Service+Image";
 
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect fill='%23ddd' width='300' height='200'/%3E%3Ctext x='50%' y='50%' font-size='14' fill='%23999' text-anchor='middle' dy='.3em'%3ESpa Service%3C/text%3E%3C/svg%3E";
 
@@ -21,32 +22,12 @@ const spaCategories = [
 // Helper function to get image for spa services
 // Uses Supabase Storage URLs based on room types when available
 const getSpaServiceImage = (id) => {
-  // Try to map to room types for Supabase images
-  const roomTypeMap = {
-    1: 'STD', 2: 'DLX', 3: 'SUI', 4: 'PEN', 5: 'CMB',
-    6: 'STD', 7: 'DLX', 8: 'SUI', 9: 'PEN', 10: 'CMB',
-    11: 'STD', 12: 'DLX', 13: 'SUI', 14: 'PEN', 15: 'CMB',
-    16: 'STD', 17: 'DLX', 18: 'SUI', 19: 'PEN',
-  };
+  // Use id to cycle through images 1-8.png
+  // Images are named 1-lg.png through 8-lg.png for large format
+  if (!id) return PLACEHOLDER_IMG_SERVICE;
   
-  const roomTypeCode = roomTypeMap[id];
-  if (roomTypeCode) {
-    try {
-      const urls = getImageUrlsByRoomType(roomTypeCode);
-      return urls.image_url || PLACEHOLDER_IMG;
-    } catch (err) {
-      console.warn('Error getting Supabase image:', err);
-    }
-  }
-  
-  // Fallback to local images
-  const localMap = {
-    17: images.Slider1,
-    18: images.Slider2,
-    19: images.Slider3,
-  };
-  
-  return localMap[id] || PLACEHOLDER_IMG;
+  const imgIndex = (id % 8) === 0 ? 8 : (id % 8);
+  return `${STORAGE_URL}/${imgIndex}-lg.png` || PLACEHOLDER_IMG_SERVICE;
 };
 
 const spaServices = {
@@ -214,7 +195,7 @@ const SpaPage = () => {
       {/* Hero Section */}
       <section className='relative h-[60vh] min-h-[480px] flex items-center justify-center text-center'>
         <img
-          src={images.Slider3}
+          src={`${STORAGE_URL}/3-lg.png`}
           alt='Spa relaxation'
           className='absolute inset-0 h-full w-full object-cover'
         />
@@ -324,17 +305,9 @@ const SpaPage = () => {
 
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
             {facilities.map((facility, index) => {
-              // Use Supabase images or placeholder
-              const roomTypes = ['STD', 'DLX', 'SUI', 'PEN', 'CMB', 'STD'];
-              const roomTypeCode = roomTypes[index % roomTypes.length];
-              let facilityImage = PLACEHOLDER_IMG;
-              
-              try {
-                const urls = getImageUrlsByRoomType(roomTypeCode);
-                facilityImage = urls.image_url || PLACEHOLDER_IMG;
-              } catch (err) {
-                console.warn('Error getting facility image:', err);
-              }
+              // Use Supabase images or placeholder (1-6)
+              const imgIndex = (index % 6) + 1;
+              let facilityImage = `${STORAGE_URL}/${imgIndex}-lg.png`;
               
               return (
                 <div

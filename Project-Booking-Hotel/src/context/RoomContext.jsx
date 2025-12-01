@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { roomCategories } from "../db/data";
 import {
   isBookingEmailConfigured,
   sendBookingConfirmationEmail,
@@ -7,15 +6,17 @@ import {
 import {
   fetchRoomsWithImages,
   fetchRoomReviews,
-  fetchUserBookings,
-  createBooking,
   createReview,
   checkRoomAvailability,
-  updateBookingStatus,
   hasUserBookedRoomType,
-  fetchPriceRules, // NEW
-  fetchPromotions, // NEW
-} from "../utils/supabaseClient";
+  fetchPriceRules,
+  fetchPromotions,
+} from "../services/roomService";
+import {
+  fetchUserBookings,
+  createBooking,
+  updateBookingStatus,
+} from "../services/bookingService";
 
 const RoomInfo = createContext();
 
@@ -563,6 +564,11 @@ export const RoomContext = ({ children }) => {
     });
   };
 
+  const updateCategory = (category) => {
+    setSelectedCategory(category);
+    setRooms(filterRooms({ selectedCategory: category }));
+  };
+
   const clearAllFilters = () => {
     setSelectedRoomTypes([]);
     setSelectedAmenities([]);
@@ -961,7 +967,7 @@ export const RoomContext = ({ children }) => {
     toggleAmenity,
     availableAmenities,
     selectedCategory,
-    setSelectedCategory,
+    updateCategory,
     clearAllFilters,
     handleCheck,
     resetRoomFilterData,

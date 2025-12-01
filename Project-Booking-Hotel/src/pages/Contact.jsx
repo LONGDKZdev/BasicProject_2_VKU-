@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import images from '../assets';
 import { ScrollToTop, Toast } from '../components';
 import { FaEnvelope, FaMapMarkerAlt, FaPhoneAlt, FaClock } from 'react-icons/fa';
+
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms';
 
 const contactCards = [
   {
@@ -98,7 +99,7 @@ const Contact = () => {
 
       <section className='relative h-[50vh] min-h-[420px] flex items-center justify-center text-center'>
         <img
-          src={images.Slider2}
+          src={`${STORAGE_URL}/img/heroSlider/2.jpg`}
           alt='Lobby welcome area'
           className='absolute inset-0 h-full w-full object-cover'
         />
@@ -180,7 +181,7 @@ const Contact = () => {
                   className={`w-full border px-4 py-3 focus:outline-none focus:border-accent ${
                     errors.phone ? 'border-red-400' : 'border-[#eadfcf]'
                   }`}
-                placeholder='+84 987 654 321'
+                  placeholder='+84 987 654 321'
                 />
                 {errors.phone && <p className='text-sm text-red-500 mt-1'>{errors.phone}</p>}
               </div>
@@ -255,4 +256,3 @@ const Contact = () => {
 };
 
 export default Contact;
-

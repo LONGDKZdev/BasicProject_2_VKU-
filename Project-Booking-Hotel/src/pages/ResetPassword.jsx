@@ -1,135 +1,87 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { LogoDark } from '../assets';
-import { FaLock, FaSpinner, FaCheck, FaArrowLeft, FaKey } from 'react-icons/fa';
+import { FaLock, FaSpinner, FaCheck, FaArrowLeft } from 'react-icons/fa';
 import Toast from '../components/Toast';
+import { useAuth } from '../context/AuthContext';
 
 const ResetPassword = () => {
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
-    code: '',
     newPassword: '',
     confirmPassword: ''
   });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [email, setEmail] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
-  const location = useLocation();
+  const { updatePassword, loading, error: authError } = useAuth();
+
+  // Supabase sends a token in the URL fragment or query param after email click
+  const token = searchParams.get('token') || window.location.hash;
 
   useEffect(() => {
-    // Get email from location state or from stored reset data
-    const resetData = JSON.parse(localStorage.getItem('password_reset') || 'null');
-    const emailFromState = location.state?.email;
-    
-    if (emailFromState) {
-      setEmail(emailFromState);
-    } else if (resetData?.email) {
-      setEmail(resetData.email);
-    } else {
-      // No email found, redirect to forgot password
-      navigate('/forgot-password');
+    // If no token, user likely came from ForgotPassword flow or manual access
+    // No need to redirect - they can still access the page
+    if (!token) {
+      console.log('No reset token found in URL. User may need to click email link or request new reset.');
     }
-  }, [location, navigate]);
+  }, [token]);
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
-    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
 
     // Validation
-    if (!formData.code || !formData.newPassword || !formData.confirmPassword) {
-      setError('Please fill in all fields');
-      setLoading(false);
-      return;
-    }
-
-    if (formData.code.length !== 6) {
-      setError('Reset code must be 6 digits');
-      setLoading(false);
+    if (!formData.newPassword || !formData.confirmPassword) {
+      setToast({
+        message: 'Please fill in all password fields',
+        type: 'error'
+      });
       return;
     }
 
     if (formData.newPassword.length < 6) {
-      setError('Password must be at least 6 characters');
-      setLoading(false);
+      setToast({
+        message: 'Password must be at least 6 characters',
+        type: 'error'
+      });
       return;
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      setLoading(false);
+      setToast({
+        message: 'Passwords do not match',
+        type: 'error'
+      });
       return;
     }
 
-    // Check reset code
-    const resetData = JSON.parse(localStorage.getItem('password_reset') || 'null');
-
-    if (!resetData) {
-      setError('Reset code expired or invalid. Please request a new one.');
-      setLoading(false);
-      return;
-    }
-
-    // Check if code matches
-    if (resetData.code !== formData.code) {
-      setError('Invalid reset code. Please check and try again.');
-      setLoading(false);
-      return;
-    }
-
-    // Check if code expired
-    if (new Date(resetData.expiresAt) < new Date()) {
-      setError('Reset code has expired. Please request a new one.');
-      localStorage.removeItem('password_reset');
-      setLoading(false);
-      return;
-    }
-
-    // Check if email matches
-    if (resetData.email !== email) {
-      setError('Email mismatch. Please use the correct email.');
-      setLoading(false);
-      return;
-    }
-
-    // Update password in users list
-    const users = JSON.parse(localStorage.getItem('hotel_users') || '[]');
-    const updatedUsers = users.map(user => {
-      if (user.email === email) {
-        return {
-          ...user,
-          password: formData.newPassword // In production, this should be hashed
-        };
-      }
-      return user;
-    });
-
-    localStorage.setItem('hotel_users', JSON.stringify(updatedUsers));
+    const result = await updatePassword(formData.newPassword);
     
-    // Remove reset data
-    localStorage.removeItem('password_reset');
-
-    setLoading(false);
-    setToast({
-      message: 'Password reset successfully! Redirecting to login...',
-      type: 'success'
-    });
-
-    // Redirect to login after 2 seconds
-    setTimeout(() => {
-      navigate('/login');
-    }, 2000);
+    if (result.success) {
+      setToast({
+        message: 'Password reset successfully!',
+        type: 'success'
+      });
+      setSuccessMessage('Your password has been reset successfully. You will be redirected to the login page.');
+      
+      setTimeout(() => {
+        navigate('/login', { replace: true });
+      }, 3000);
+    } else {
+      setToast({
+        message: result.error || 'Failed to reset password. Please try again.',
+        type: 'error'
+      });
+    }
   };
 
   return (
@@ -149,139 +101,125 @@ const ResetPassword = () => {
               <LogoDark className="w-[180px] brightness-0 invert" />
             </div>
             <h1 className="text-2xl font-primary text-white mb-2">Reset Password</h1>
-            <p className="text-white/90 text-sm">
-              {email ? `Enter code sent to ${email}` : 'Enter reset code and new password'}
-            </p>
+            <p className="text-white/90 text-sm">Enter your new password</p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-8 space-y-5">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            {/* Reset Code */}
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-primary">
-                Reset Code *
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FaKey className="text-gray-400" />
+          {!successMessage ? (
+            <form onSubmit={handleSubmit} className="p-8 space-y-5">
+              {/* New Password */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-primary">
+                  New Password *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <FaLock className="text-gray-400" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="newPassword"
+                    value={formData.newPassword}
+                    onChange={handleChange}
+                    className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                    placeholder="••••••••"
+                    required
+                    disabled={loading}
+                    minLength="6"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-accent transition-colors text-sm"
+                  >
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
                 </div>
-                <input
-                  type="text"
-                  name="code"
-                  value={formData.code}
-                  onChange={handleChange}
-                  maxLength="6"
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-center text-2xl font-mono tracking-widest"
-                  placeholder="000000"
-                  required
-                  disabled={loading}
-                />
+                <p className="text-xs text-gray-500 mt-1">
+                  At least 6 characters
+                </p>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Enter the 6-digit code sent to your email
-              </p>
-            </div>
 
-            {/* New Password */}
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-primary">
-                New Password *
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FaLock className="text-gray-400" />
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-primary">
+                  Confirm New Password *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <FaLock className="text-gray-400" />
+                  </div>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                    placeholder="••••••••"
+                    required
+                    disabled={loading}
+                    minLength="6"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-accent transition-colors text-sm"
+                  >
+                    {showConfirmPassword ? 'Hide' : 'Show'}
+                  </button>
                 </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="newPassword"
-                  value={formData.newPassword}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                  placeholder="••••••••"
-                  required
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-accent transition-colors text-sm"
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
               </div>
-            </div>
 
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-primary">
-                Confirm New Password *
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FaLock className="text-gray-400" />
-                </div>
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                  placeholder="••••••••"
-                  required
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-accent transition-colors text-sm"
-                >
-                  {showConfirmPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full btn btn-primary btn-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <FaSpinner className="animate-spin" />
-                  Resetting Password...
-                </>
-              ) : (
-                <>
-                  <FaCheck />
-                  Reset Password
-                </>
-              )}
-            </button>
-
-            {/* Back Links */}
-            <div className="flex items-center justify-between pt-4">
-              <Link
-                to="/forgot-password"
-                className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent-hover transition-colors"
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full btn btn-primary btn-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <FaArrowLeft />
-                Request New Code
-              </Link>
+                {loading ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Resetting Password...
+                  </>
+                ) : (
+                  <>
+                    <FaCheck />
+                    Reset Password
+                  </>
+                )}
+              </button>
+
+              {/* Back Links */}
+              <div className="text-center pt-2">
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent-hover transition-colors"
+                >
+                  <FaArrowLeft />
+                  Back to Sign In
+                </Link>
+              </div>
+            </form>
+          ) : (
+            <div className="p-8 space-y-6">
+              <div className="text-center mb-6">
+                <FaCheck className="text-5xl text-green-500 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-gray-800 mb-2">Password Reset Successfully!</h2>
+              </div>
+              
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm text-green-900">
+                  {successMessage}
+                </p>
+              </div>
+
               <Link
                 to="/login"
-                className="text-sm text-accent hover:text-accent-hover transition-colors"
+                className="block w-full btn btn-primary btn-lg text-center"
               >
-                Back to Sign In
+                Go to Sign In
               </Link>
             </div>
-          </form>
+          )}
 
           {/* Footer */}
           <div className="px-8 py-4 bg-gray-50 border-t border-gray-200 text-center">

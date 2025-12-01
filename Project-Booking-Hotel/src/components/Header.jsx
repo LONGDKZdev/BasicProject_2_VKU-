@@ -2,9 +2,9 @@ import { useRoomContext } from "../context/RoomContext";
 import { useAuth } from "../context/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { LogoWhite } from "../assets";
-import { LogoDark } from "../assets";
 import { FaUser, FaSignOutAlt, FaSignInAlt } from "react-icons/fa";
+
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
 
 const Header = () => {
   const { resetRoomFilterData } = useRoomContext();
@@ -53,18 +53,14 @@ const Header = () => {
       ${header ? "bg-white py-6 shadow-lg" : "bg-transparent py-8"}`}
     >
       <div className="container mx-auto flex flex-col lg:flex-row items-center lg:justify-between gap-y-6 lg:gap-y-0">
-        {/* Logo */}
         <Link to="/" onClick={resetRoomFilterData}>
-          {
-            header ? (
-              <LogoDark className="w-[160px]" /> //<img className='w-[160px]' src={LogoDark} />
-            ) : (
-              <LogoWhite className="w-[160px]" />
-            ) //<img className='w-[160px]' src={LogoWhite} />
-          }
+          {header ? (
+            <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[160px]" />
+          ) : (
+            <img src={`${STORAGE_URL}/logo-white.svg`} alt="logo" className="w-[160px]" />
+          )}
         </Link>
 
-        {/* Nav */}
         <nav
           className={`${header ? "text-primary" : "text-white"}
         flex gap-x-4 lg:gap-x-8 font-tertiary tracking-[3px] text-[15px] items-center uppercase`}
@@ -79,7 +75,6 @@ const Header = () => {
             </Link>
           ))}
 
-          {/* Auth Buttons */}
           <div className="flex items-center gap-3 ml-4 pl-4 border-l border-current/20">
             {isAuthenticated() ? (
               <>

@@ -1,12 +1,12 @@
 import { BsArrowsFullscreen, BsPeople } from "react-icons/bs";
 import { FaStar } from "react-icons/fa";
 import { Link } from "react-router-dom";
-import { roomCategories } from "../db/data";
 
-// Placeholder image - will be replaced by Supabase Storage URL
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23ddd' width='400' height='300'/%3E%3Ctext x='50%' y='50%' font-size='18' fill='%23999' text-anchor='middle' dy='.3em'%3ELoading image...%3C/text%3E%3C/svg%3E";
 
 const Room = ({ room }) => {
+  if (!room) return null;
+
   const {
     id,
     name,
@@ -15,20 +15,17 @@ const Room = ({ room }) => {
     maxPerson,
     description,
     price,
+    type,
     reviews,
-    category,
-  } = room ?? {};
-  
-  const averageRating = reviews?.length
-    ? (
-        reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length
-      ).toFixed(1)
-    : null;
+  } = room;
 
-  const categoryData = roomCategories.find((cat) => cat.id === category);
-
-  // Use Supabase Storage URL if available, fallback to placeholder
+  // Use Supabase image URL if available
   const displayImage = image || PLACEHOLDER_IMG;
+
+  // Calculate average rating from reviews
+  const averageRating = reviews && reviews.length > 0
+    ? Math.round(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length)
+    : 4;
 
   return (
     <div className="bg-white shadow-2xl min-h-[500px] group relative">
@@ -38,14 +35,13 @@ const Room = ({ room }) => {
           alt={name || "room"}
           className="group-hover:scale-110 transition-all duration-300 w-full object-cover h-64"
           onError={(e) => {
-            // Fallback if image URL fails to load
-            console.warn('❌ Image failed to load from Supabase:', displayImage);
+            console.warn('Image failed to load from Supabase:', displayImage);
             e.target.src = PLACEHOLDER_IMG;
           }}
         />
-        {categoryData && (
+        {type && (
           <div className="absolute top-4 right-4 bg-teal-600 text-white px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-[1px]">
-            {categoryData.name}
+            {type}
           </div>
         )}
       </div>
@@ -58,7 +54,7 @@ const Room = ({ room }) => {
             </div>
             <div className="flex gap-x-1">
               <div>Size</div>
-              <div>{size}m2</div>
+              <div>{size || 0}m²</div>
             </div>
           </div>
 
@@ -68,25 +64,24 @@ const Room = ({ room }) => {
             </div>
             <div className="flex gap-x-1">
               <div>Max people</div>
-              <div>{maxPerson}</div>
+              <div>{maxPerson || 2}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* name and description */}
       <div className="text-center px-6">
         <Link to={`/room/${id}`}>
-          <h3 className="h3">{name}</h3>
+          <h3 className="h3">{name || 'Standard Room'}</h3>
         </Link>
 
-        {room?.type && (
+        {type && (
           <p className="text-xs uppercase tracking-[3px] text-primary/60 mb-2">
-            {room.type}
+            {type} Room
           </p>
         )}
         <p className="max-w-[300px] mx-auto mb-3 lg:mb-6">
-          {description.slice(0, 56)}..
+          {description ? description.slice(0, 56) : 'Comfortable room with modern amenities'}..
         </p>
         <div className="flex justify-center items-center gap-2 mb-4 text-sm text-primary/80">
           <div className="flex items-center gap-1 text-accent">
@@ -94,27 +89,20 @@ const Room = ({ room }) => {
               <FaStar
                 key={index}
                 className={`${
-                  averageRating && index < Math.round(averageRating)
-                    ? "text-accent"
-                    : "text-accent/30"
+                  index < averageRating ? "text-accent" : "text-accent/30"
                 }`}
               />
             ))}
           </div>
-          <span>
-            {averageRating
-              ? `${averageRating} • ${reviews.length} reviews`
-              : "Be the first to review"}
-          </span>
+          <span>{averageRating}.0 • {reviews?.length || 0} reviews</span>
         </div>
       </div>
 
-      {/* button */}
       <Link
         to={`/room/${id}`}
         className="btn btn-secondary btn-sm max-w-[240px] mx-auto duration-300"
       >
-        Book now from ${price}
+        Book now from ${(price || 0).toFixed(2)}
       </Link>
     </div>
   );

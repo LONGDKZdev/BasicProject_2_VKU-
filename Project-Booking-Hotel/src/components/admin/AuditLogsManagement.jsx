@@ -1,8 +1,6 @@
 import { useEffect } from 'react';
 import { useCRUD } from '../../hooks';
 import { AdminHeader, AdminTable } from '../../features/admin';
-import { supabase } from '../../utils/supabaseClient';
-
 const AuditLogsManagement = () => {
   const { data: logs, isLoading, error, fetchData } = useCRUD(
     'audit_logs',
@@ -69,7 +67,7 @@ const AuditLogsManagement = () => {
         isLoading={isLoading}
         error={error}
         onRetry={() => fetchData({}, { column: 'created_at', ascending: false })}
-        emptyMessage="No audit logs yet."
+        emptyMessage="No data found"
       />
     </div>
   );

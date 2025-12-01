@@ -7,7 +7,7 @@ import {
   updateRestaurantBookingStatus,
   createSpaBooking,
   updateSpaBookingStatus,
-} from '../utils/supabaseClient';
+} from '../services/bookingService';
 
 const BookingContext = createContext();
 

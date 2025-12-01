@@ -1,0 +1,1307 @@
+=== ORIGINAL UI SOURCE FROM: Project_Demo ===
+
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\index.html
+=================================================================
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="icon" type="image/png" href="/logo.png" />
+
+  <title>Hotel Booking</title>
+</head>
+
+<body>
+
+  <div id="root"></div>
+
+  <script type="module" src="/src/main.jsx"></script>
+
+</body>
+
+</html>
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\package.json
+=================================================================
+{
+  "name": "hotelbooking",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@headlessui/react": "^1.7.10",
+    "@types/react": "^18.0.27",
+    "@types/react-dom": "^18.0.10",
+    "@vitejs/plugin-react": "^3.1.0",
+    "autoprefixer": "^10.4.13",
+    "postcss": "^8.4.21",
+    "react-datepicker": "^4.10.0",
+    "react-icons": "^4.7.1",
+    "react-router-dom": "^6.8.1",
+    "spinners-react": "^1.0.7",
+    "swiper": "^9.0.4",
+    "tailwindcss": "^3.2.6",
+    "vite": "^4.1.0",
+    "vite-plugin-svgr": "^2.4.0"
+  }
+}
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\App.jsx
+=================================================================
+import { BrowserRouter, Route, Routes, } from 'react-router-dom';
+import { Footer, Header, PageNotFound } from './components';
+import { Home, RoomDetails } from './pages';
+
+
+const App = () => {
+
+  // const paths = [
+  //   { path: '/', element: <Home /> },
+  //   { path: '/room/:id', element: <RoomDetails /> },
+  //   { path: '*', element: <PageNotFound /> },
+  // ]
+
+  // const router = createBrowserRouter(paths);
+  // <RouterProvider router={router} /> 
+
+  return (
+
+    <main className=''>
+      <BrowserRouter>
+
+        <Header />
+
+        <Routes>
+          <Route path={'/'} element={<Home />} />
+          <Route path={'/room/:id'} element={<RoomDetails />} />
+          <Route path={'*'} element={<PageNotFound />} />
+        </Routes>
+
+        <Footer />
+
+      </BrowserRouter>
+    </main>
+  )
+}
+
+export default App
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\assets\index.js
+=================================================================
+import Room1Img from './img/rooms/1.png';
+import Room2Img from './img/rooms/2.png';
+import Room3Img from './img/rooms/3.png';
+import Room4Img from './img/rooms/4.png';
+import Room5Img from './img/rooms/5.png';
+import Room6Img from './img/rooms/6.png';
+import Room7Img from './img/rooms/7.png';
+import Room8Img from './img/rooms/8.png';
+import Room1ImgLg from './img/rooms/1-lg.png';
+import Room2ImgLg from './img/rooms/2-lg.png';
+import Room3ImgLg from './img/rooms/3-lg.png';
+import Room4ImgLg from './img/rooms/4-lg.png';
+import Room5ImgLg from './img/rooms/5-lg.png';
+import Room6ImgLg from './img/rooms/6-lg.png';
+import Room7ImgLg from './img/rooms/7-lg.png';
+import Room8ImgLg from './img/rooms/8-lg.png';
+
+import Slider1 from './img/heroSlider/1.jpg';
+import Slider2 from './img/heroSlider/2.jpg';
+import Slider3 from './img/heroSlider/3.jpg';
+
+export { ReactComponent as LogoDark } from './img/logo-dark.svg';
+export { ReactComponent as LogoWhite } from './img/logo-white.svg';
+
+const images = {
+    Slider1,
+    Slider2,
+    Slider3,
+    Room1Img,
+    Room2Img,
+    Room3Img,
+    Room4Img,
+    Room5Img,
+    Room6Img,
+    Room7Img,
+    Room8Img,
+    Room1ImgLg,
+    Room2ImgLg,
+    Room3ImgLg,
+    Room4ImgLg,
+    Room5ImgLg,
+    Room6ImgLg,
+    Room7ImgLg,
+    Room8ImgLg,
+}
+
+export default images;
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\AdultsDropdown.jsx
+=================================================================
+import { useRoomContext } from '../context/RoomContext';
+import { BsChevronDown } from 'react-icons/bs';
+import { adultsList } from '../constants/data';
+import { Menu } from '@headlessui/react';
+
+
+const AdultsDropdown = () => {
+
+  const { adults, setAdults, } = useRoomContext();
+
+
+  return (
+    <Menu as='div' className='w-full h-full bg-white relative'>
+
+
+      <Menu.Button className='w-full h-full flex items-center justify-between px-8'>
+        {adults}
+        <BsChevronDown className='text-base text-accent-hover' />
+      </Menu.Button>
+
+
+      <Menu.Items as='ul' className='bg-white absolute w-full flex flex-col z-40'>
+        {
+          adultsList.map(({ name }, idx) =>
+            <Menu.Item
+              as='li'
+              key={idx}
+              onClick={() => setAdults(name)}
+              className='border-b last-of-type:border-b-0 h-10 hover:bg-accent hover:text-white w-full flex items-center justify-center cursor-pointer'
+            >
+              {name}
+            </Menu.Item>
+          )
+        }
+      </Menu.Items>
+
+
+    </Menu>
+  );
+};
+
+export default AdultsDropdown;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\BookForm.jsx
+=================================================================
+import { AdultsDropdown, CheckIn, CheckOut, KidsDropdown } from '.';
+import { useRoomContext } from '../context/RoomContext';
+
+
+const BookForm = () => {
+
+  const { handleCheck } = useRoomContext();
+
+
+  return (
+    <form className='h-[300px] lg:h-[70px] w-full'>
+      <div className='flex flex-col w-full h-full lg:flex-row'>
+
+        <div className='flex-1 border-r'>
+          <CheckIn />
+        </div>
+
+        <div className='flex-1 border-r'>
+          <CheckOut />
+        </div>
+
+        <div className='flex-1 border-r'>
+          <AdultsDropdown />
+        </div>
+
+        <div className='flex-1 border-r'>
+          <KidsDropdown />
+        </div>
+
+        <button
+          type='submit'
+          className='btn btn-primary'
+          onClick={(e) => handleCheck(e)}
+        >
+          Check Now
+        </button>
+
+      </div>
+    </form>
+  );
+};
+
+export default BookForm;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\CheckIn.jsx
+=================================================================
+import { BsCalendar } from 'react-icons/bs';
+import { useState } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import '../style/datepicker.css';
+
+
+const CheckIn = () => {
+
+  const [startDate, setStartDate] = useState(false);
+
+  return (
+    <div className='relative flex items-center justify-end h-full'>
+
+      <div className='absolute z-10 pr-8'>
+        <div><BsCalendar className='text-accent text-base' /> </div>
+      </div>
+
+      <DatePicker
+        className='w-full h-full'
+        selected={startDate}
+        placeholderText='Check in'
+        onChange={(date) => setStartDate(date)}
+      />
+
+    </div>
+  );
+};
+
+export default CheckIn;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\CheckOut.jsx
+=================================================================
+import { BsCalendar } from 'react-icons/bs';
+import { useState } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import '../style/datepicker.css';
+
+
+const CheckOut = () => {
+
+  const [endDate, setEndDate] = useState(false);
+
+  return (
+    <div className='relative flex items-center justify-end h-full'>
+
+      <div className='absolute z-10 pr-8'>
+        <div><BsCalendar className='text-accent text-base' /> </div>
+      </div>
+
+      <DatePicker
+        className='w-full h-full'
+        selected={endDate}
+        placeholderText='Check out'
+        onChange={(date) => setEndDate(date)}
+      />
+
+    </div>
+  );
+};
+
+export default CheckOut;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\Footer.jsx
+=================================================================
+import { LogoWhite } from "../assets";
+
+const Footer = () => (
+  <footer className='bg-primary py-12'>
+
+    <div className='container mx-auto text-white flex items-center gap-5 sm:justify-between flex-col sm:flex-row'>
+      <a href="/" >
+        <LogoWhite />
+      </a>
+      <div className="flex flex-col items-center">
+        <p>Copyright &copy; {new Date().getFullYear()}, All Right Reserved,</p>
+      </div>
+    </div>
+
+  </footer>
+);
+
+export default Footer;
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\Header.jsx
+=================================================================
+import { useRoomContext } from '../context/RoomContext';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { LogoWhite } from '../assets'; // SVG Logo
+import { LogoDark } from '../assets'; // SVG Logo
+
+
+const Header = () => {
+
+  const { resetRoomFilterData } = useRoomContext();
+
+  const [header, setHeader] = useState(false);
+
+  useEffect(() => {
+    window.addEventListener('scroll', () =>
+      window.scrollY > 50
+        ? setHeader(true)
+        : setHeader(false)
+    );
+  });
+
+  const navLinks = ['Home', 'Rooms', 'Restaurant', 'Spa', 'Contact'];
+
+  return (
+    <header
+      className={`fixed z-50 w-full transition-all duration-300 
+      ${header ? 'bg-white py-6 shadow-lg' : 'bg-transparent py-8'}`}
+    >
+
+      <div className='container mx-auto flex flex-col lg:flex-row items-center lg:justify-between gap-y-6 lg:gap-y-0'>
+
+        {/* Logo */}
+        <Link to="/" onClick={resetRoomFilterData}>
+          {
+            header
+              ? <LogoDark className='w-[160px]' /> //<img className='w-[160px]' src={LogoDark} />
+              : <LogoWhite className='w-[160px]' /> //<img className='w-[160px]' src={LogoWhite} />
+          }
+        </Link>
+
+        {/* Nav */}
+        <nav className={`${header ? 'text-primary' : 'text-white'}
+        flex gap-x-4 lg:gap-x-8 font-tertiary tracking-[3px] text-[15px] items-center uppercase`}>
+          {
+            navLinks.map(link =>
+              <Link to="/" className='transition hover:text-accent' key={link}>
+                {link}
+              </Link>
+            )
+          }
+        </nav>
+
+      </div>
+
+    </header>
+  );
+};
+
+export default Header;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\HeroSlider.jsx
+=================================================================
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { sliderData } from '../constants/data';
+import { EffectFade, Autoplay } from 'swiper';
+import 'swiper/css/effect-fade';
+import 'swiper/css';
+
+
+const HeroSlider = () => {
+
+  return (
+    <Swiper
+      modules={[EffectFade, Autoplay]}
+      effect={'fade'}
+      loop={true}
+      autoplay={{
+        delay: 3000,
+        disableOnInteraction: false,
+      }}
+      className='heroSlider h-[600px] lg:h-[860px]'
+    >
+      {
+        sliderData.map(({ id, title, bg, btnNext }) =>
+          <SwiperSlide className='h-full relative flex justify-center items-center' key={id}>
+
+            <div className='z-20 text-white text-center'>
+              <div className='uppercase font-tertiary tracking-[6px] mb-5'>Just Enjoy & Relax</div>
+              <h1 className='font-primary text-[32px] uppercase tracking-[2px] max-w-[920px] lg:text-[68px] leading-tight mb-6'>
+                {title}
+              </h1>
+              <button className='btn btn-lg btn-primary mx-auto'>{btnNext}</button>
+            </div>
+
+            <div className='absolute top-0 w-full h-full'>
+              <img className='object-cover h-full w-full' src={bg} alt="logo" />
+            </div>
+
+            <div className='absolute w-full h-full bg-black/70' />
+          </SwiperSlide>
+        )
+      }
+    </Swiper>
+  )
+};
+
+export default HeroSlider;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\index.js
+=================================================================
+export { default as AdultsDropdown } from './AdultsDropdown';
+export { default as PageNotFound } from './PageNotFound';
+export { default as KidsDropdown } from './KidsDropdown';
+export { default as HeroSlider } from './HeroSlider';
+export { default as BookForm } from './BookForm';
+export { default as CheckOut } from './CheckOut';
+export { default as CheckIn } from './CheckIn';
+export { default as Footer } from './Footer';
+export { default as Header } from './Header';
+export { default as Rooms } from './Rooms';
+export { default as Room } from './Room';
+
+export { default as ScrollToTop } from '../utils/ScrollToTop';
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\KidsDropdown.jsx
+=================================================================
+import { useRoomContext } from '../context/RoomContext';
+import { BsChevronDown } from 'react-icons/bs';
+import { kidsList } from '../constants/data';
+import { Menu } from '@headlessui/react';
+
+
+const KidsDropdown = () => {
+
+  const { kids, setKids } = useRoomContext();
+
+
+  return (
+    <Menu as='div' className='w-full h-full bg-white relative'>
+
+
+      <Menu.Button className='w-full h-full flex items-center justify-between px-8'>
+        {kids === '0 Kid' ? 'No Kid' : kids}
+        <BsChevronDown className='text-base text-accent-hover' />
+      </Menu.Button>
+
+
+      <Menu.Items as='ul' className='bg-white absolute w-full flex flex-col z-40'>
+        {
+          kidsList.map(({ name }, idx) =>
+            <Menu.Item
+              as='li'
+              key={idx}
+              onClick={() => setKids(name)}
+              className='border-b last-of-type:border-b-0 h-10 hover:bg-accent hover:text-white w-full flex items-center justify-center cursor-pointer'
+            >
+              {name}
+            </Menu.Item>
+          )
+        }
+      </Menu.Items>
+
+
+    </Menu>
+  );
+};
+
+export default KidsDropdown;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\PageNotFound.jsx
+=================================================================
+import React from 'react'
+
+const PageNotFound = () => {
+  return (
+    <div>404 Page Not Found</div>
+  )
+}
+
+export default PageNotFound
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\Room.jsx
+=================================================================
+import { BsArrowsFullscreen, BsPeople } from 'react-icons/bs';
+import { Link } from 'react-router-dom';
+
+const Room = ({ room }) => {
+
+  const { id, name, image, size, maxPerson, description, price } = room ?? {};
+
+  return (
+    <div className='bg-white shadow-2xl min-h-[500px] group'>
+
+      <div className='overflow-hidden'>
+        <img src={image} alt="img" className='group-hover:scale-110 transition-all duration-300 w-full' />
+      </div>
+
+
+      <div className='bg-white shadow-lg max-w-[300px] mx-auto h-[60px] -translate-y-1/2 flex justify-center items-center uppercase font-tertiary tracking-[1px] font-semibold text-base'>
+
+        <div className='flex justify-between w-[80%]'>
+
+          <div className='flex items-center gap-x-2'>
+            <div className='text-accent'>
+              <BsArrowsFullscreen className='text-[15px]' />
+            </div>
+            <div className='flex gap-x-1'>
+              <div>Size</div>
+              <div>{size}m2</div>
+            </div>
+          </div>
+
+          <div className='flex items-center gap-x-2'>
+            <div className='text-accent'>
+              <BsPeople className='text-[18px]' />
+            </div>
+            <div className='flex gap-x-1'>
+              <div>Max people</div>
+              <div>{maxPerson}</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* name and description */}
+      <div className='text-center'>
+        <Link to={`/room/${id}`}>
+          <h3 className="h3">{name}</h3>
+        </Link>
+
+        <p className='max-w-[300px] mx-auto mb-3 lg:mb-6'>{description.slice(0, 56)}..</p>
+      </div>
+
+
+      {/* button */}
+      <Link
+        to={`/room/${id}`}
+        className="btn btn-secondary btn-sm max-w-[240px] mx-auto duration-300"
+      >
+        Book now from ${price}
+      </Link>
+
+    </div>
+  );
+
+};
+
+export default Room;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\components\Rooms.jsx
+=================================================================
+import { useRoomContext } from '../context/RoomContext';
+import { SpinnerDotted } from 'spinners-react';
+import { Room } from '.';
+
+
+const Rooms = () => {
+
+  const { rooms, loading } = useRoomContext();
+
+  return (
+    <section className='py-24'>
+
+      {
+        // overlay & spinner effect 
+        loading &&
+        <div className='h-screen w-full fixed bottom-0 top-0 bg-black/80 z-50 grid place-items-center'>
+          <SpinnerDotted />
+        </div>
+      }
+
+
+      <div className='container mx-auto lg:px-0'>
+
+        <div className='text-center'>
+          <p className='font-tertiary uppercase text-[15px] tracking-[6px]'>Hotel & Spa Adina</p>
+          <h2 className='font-primary text-[45px] mb-6'>Room & Suites</h2>
+        </div>
+
+        <div className='grid grid-cols-1 max-w-sm mx-auto gap-[30px] lg:grid-cols-3 lg:max-w-none lg:mx-0'>
+          {
+            rooms.map(room =>
+              <Room key={room.id} room={room} />
+            )
+          }
+        </div>
+      </div>
+
+    </section>
+  );
+};
+
+export default Rooms;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\constants\data.js
+=================================================================
+import { FaCheck } from "react-icons/fa";
+import images from "../assets";
+
+
+export const adultsList = [
+    { name: '1 Adult' },
+    { name: '2 Adults' },
+    { name: '3 Adults' },
+    { name: '4 Adults' },
+]
+
+
+export const kidsList = [
+    { name: '0 Kid' },
+    { name: '1 Kid' },
+    { name: '2 Kids' },
+    { name: '3 Kids' },
+    { name: '4 Kids' },
+]
+
+
+export const sliderData = [
+    {
+        id: 1,
+        title: 'Your Luxury Hotel For Vacation',
+        bg: images.Slider1,
+        btnNext: 'See our rooms',
+    },
+    {
+        id: 2,
+        title: 'Feel Relax & Enjoy Your Luxuriousness',
+        bg: images.Slider2,
+        btnNext: 'See our rooms',
+    },
+    {
+        id: 3,
+        title: 'Your Luxury Hotel For Vacation',
+        bg: images.Slider3,
+        btnNext: 'See our rooms',
+    },
+]
+
+
+export const hotelRules = [
+    {
+        rules: 'Check-in : 3:00 PM - 9:00 PM',
+    },
+    {
+        rules: 'Check-out : 10:30 AM',
+    },
+    {
+        rules: 'No Smoking',
+    },
+    {
+        rules: 'No Pet',
+    },
+]
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\context\RoomContext.jsx
+=================================================================
+import { createContext, useContext, useEffect, useState } from "react";
+import { roomData } from "../db/data";
+
+
+const RoomInfo = createContext();
+
+
+export const RoomContext = ({ children }) => {
+
+  const [rooms, setRooms] = useState(roomData);
+  const [loading, setLoading] = useState(false);
+
+  const [adults, setAdults] = useState('1 Adult');
+  const [kids, setKids] = useState('0 Kid');
+  const [total, setTotal] = useState(0);
+
+
+  useEffect(() => { setTotal(+adults[0] + +kids[0]) });
+
+
+  const resetRoomFilterData = () => {
+    setAdults('1 Adult');
+    setKids('0 Kid');
+    setRooms(roomData)
+  };
+
+
+  // user click at --> Check Now button... then execute this function...
+  const handleCheck = (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    // filter rooms based on total persons...
+    const filterRooms = roomData.filter(room => total <= room.maxPerson)
+
+    setTimeout(() => {
+      setLoading(false);
+      setRooms(filterRooms); // refresh UI with new filtered rooms after 3 second...
+    }, 3000);
+  }
+
+
+  const shareWithChildren = {
+    rooms, loading,
+    adults, setAdults,
+    kids, setKids,
+    handleCheck,
+    resetRoomFilterData,
+  };
+
+
+  return (
+    <RoomInfo.Provider value={shareWithChildren}>
+      {
+        children
+      }
+    </RoomInfo.Provider>
+  )
+}
+
+export const useRoomContext = () => useContext(RoomInfo);
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\db\data.js
+=================================================================
+import { FaWifi, FaCoffee, FaBath, FaParking, FaSwimmingPool, FaHotdog, FaStopwatch, FaCocktail } from 'react-icons/fa';
+import images from '../assets';
+
+export const roomData = [
+  {
+    id: 1,
+    name: 'Superior Room',
+    description:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit.Ea placeat eos sed voluptas unde veniam eligendi a. Quaerat molestiae hic omnis temporibus quos consequuntur nam voluptatum ea accusamus, corrupti nostrum eum placeat quibusdam quis beatae quae labore earum architecto aliquid debitis.',
+    facilities: [
+      { name: 'Wifi', icon: FaWifi },
+      { name: 'Coffee', icon: FaCoffee },
+      { name: 'Bath', icon: FaBath },
+      { name: 'Parking Space', icon: FaParking },
+      { name: 'Swimming Pool', icon: FaSwimmingPool },
+      { name: 'Breakfast', icon: FaHotdog },
+      { name: 'GYM', icon: FaStopwatch },
+      { name: 'Drinks', icon: FaCocktail },
+    ],
+    size: 30,
+    maxPerson: 1,
+    price: 115,
+    image: images.Room1Img,
+    imageLg: images.Room1ImgLg,
+  },
+  {
+    id: 2,
+    name: 'Signature Room',
+    description:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit.Ea placeat eos sed voluptas unde veniam eligendi a. Quaerat molestiae hic omnis temporibus quos consequuntur nam voluptatum ea accusamus, corrupti nostrum eum placeat quibusdam quis beatae quae labore earum architecto aliquid debitis.',
+    facilities: [
+      { name: 'Wifi', icon: FaWifi },
+      { name: 'Coffee', icon: FaCoffee },
+      { name: 'Bath', icon: FaBath },
+      { name: 'Parking Space', icon: FaParking },
+      { name: 'Swimming Pool', icon: FaSwimmingPool },
+      { name: 'Breakfast', icon: FaHotdog },
+      { name: 'GYM', icon: FaStopwatch },
+      { name: 'Drinks', icon: FaCocktail },
+    ],
+    size: 70,
+    maxPerson: 2,
+    price: 220,
+    image: images.Room2Img,
+    imageLg: images.Room2ImgLg,
+  },
+  {
+    id: 3,
+    name: 'Deluxe Room',
+    description:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit.Ea placeat eos sed voluptas unde veniam eligendi a. Quaerat molestiae hic omnis temporibus quos consequuntur nam voluptatum ea accusamus, corrupti nostrum eum placeat quibusdam quis beatae quae labore earum architecto aliquid debitis.',
+    facilities: [
+      { name: 'Wifi', icon: FaWifi },
+      { name: 'Coffee', icon: FaCoffee },
+      { name: 'Bath', icon: FaBath },
+      { name: 'Parking Space', icon: FaParking },
+      { name: 'Swimming Pool', icon: FaSwimmingPool },
+      { name: 'Breakfast', icon: FaHotdog },
+      { name: 'GYM', icon: FaStopwatch },
+      { name: 'Drinks', icon: FaCocktail },
+    ],
+    size: 50,
+    maxPerson: 3,
+    price: 265,
+    image: images.Room3Img,
+    imageLg: images.Room3ImgLg,
+  },
+  {
+    id: 4,
+    name: 'Luxury Room',
+    description:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit.Ea placeat eos sed voluptas unde veniam eligendi a. Quaerat molestiae hic omnis temporibus quos consequuntur nam voluptatum ea accusamus, corrupti nostrum eum placeat quibusdam quis beatae quae labore earum architecto aliquid debitis.',
+    facilities: [
+      { name: 'Wifi', icon: FaWifi },
+      { name: 'Coffee', icon: FaCoffee },
+      { name: 'Bath', icon: FaBath },
+      { name: 'Parking Space', icon: FaParking },
+      { name: 'Swimming Pool', icon: FaSwimmingPool },
+      { name: 'Breakfast', icon: FaHotdog },
+      { name: 'GYM', icon: FaStopwatch },
+      { name: 'Drinks', icon: FaCocktail },
+    ],
+    size: 50,
+    maxPerson: 4,
+    price: 289,
+    image: images.Room4Img,
+    imageLg: images.Room4ImgLg,
+  },
+  {
+    id: 5,
+    name: 'Luxury Suite Room',
+    description:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit.Ea placeat eos sed voluptas unde veniam eligendi a. Quaerat molestiae hic omnis temporibus quos consequuntur nam voluptatum ea accusamus, corrupti nostrum eum placeat quibusdam quis beatae quae labore earum architecto aliquid debitis.',
+    facilities: [
+      { name: 'Wifi', icon: FaWifi },
+      { name: 'Coffee', icon: FaCoffee },
+      { name: 'Bath', icon: FaBath },
+      { name: 'Parking Space', icon: FaParking },
+      { name: 'Swimming Pool', icon: FaSwimmingPool },
+      { name: 'Breakfast', icon: FaHotdog },
+      { name: 'GYM', icon: FaStopwatch },
+      { name: 'Drinks', icon: FaCocktail },
+    ],
+    size: 90,
+    maxPerson: 5,
+    price: 320,
+    image: images.Room5Img,
+    imageLg: images.Room5ImgLg,
+  },
+  {
+    id: 6,
+    name: 'Deluxe Room',
+    description:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit.Ea placeat eos sed voluptas unde veniam eligendi a. Quaerat molestiae hic omnis temporibus quos consequuntur nam voluptatum ea accusamus, corrupti nostrum eum placeat quibusdam quis beatae quae labore earum architecto aliquid debitis.',
+    facilities: [
+      { name: 'Wifi', icon: FaWifi },
+      { name: 'Coffee', icon: FaCoffee },
+      { name: 'Bath', icon: FaBath },
+      { name: 'Parking Space', icon: FaParking },
+      { name: 'Swimming Pool', icon: FaSwimmingPool },
+      { name: 'Breakfast', icon: FaHotdog },
+      { name: 'GYM', icon: FaStopwatch },
+      { name: 'Drinks', icon: FaCocktail },
+    ],
+    size: 45,
+    maxPerson: 6,
+    price: 344,
+    image: images.Room6Img,
+    imageLg: images.Room6ImgLg,
+  },
+  {
+    id: 7,
+    name: 'Luxury Room',
+    description:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit.Ea placeat eos sed voluptas unde veniam eligendi a. Quaerat molestiae hic omnis temporibus quos consequuntur nam voluptatum ea ccusamus, corrupti nostrum eum placeat quibusdam quis beatae quae labore earum architecto aliquid debitis.',
+    facilities: [
+      { name: 'Wifi', icon: FaWifi },
+      { name: 'Coffee', icon: FaCoffee },
+      { name: 'Bath', icon: FaBath },
+      { name: 'Parking Space', icon: FaParking },
+      { name: 'Swimming Pool', icon: FaSwimmingPool },
+      { name: 'Breakfast', icon: FaHotdog },
+      { name: 'GYM', icon: FaStopwatch },
+      { name: 'Drinks', icon: FaCocktail },
+    ],
+    size: 84,
+    maxPerson: 7,
+    price: 389,
+    image: images.Room7Img,
+    imageLg: images.Room7ImgLg,
+  },
+  {
+    id: 8,
+    name: 'Deluxe Room',
+    description:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit.Ea placeat eos sed voluptas unde veniam eligendi a. Quaerat molestiae hic omnis temporibus quos consequuntur nam voluptatum ea accusamus, corrupti nostrum eum placeat quibusdam quis beatae quae labore earum architecto aliquid debitis.',
+    facilities: [
+      { name: 'Wifi', icon: FaWifi },
+      { name: 'Coffee', icon: FaCoffee },
+      { name: 'Bath', icon: FaBath },
+      { name: 'Parking Space', icon: FaParking },
+      { name: 'Swimming Pool', icon: FaSwimmingPool },
+      { name: 'Breakfast', icon: FaHotdog },
+      { name: 'GYM', icon: FaStopwatch },
+      { name: 'Drinks', icon: FaCocktail },
+    ],
+    size: 48,
+    maxPerson: 8,
+    price: 499,
+    image: images.Room8Img,
+    imageLg: images.Room8ImgLg,
+  },
+];
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\main.jsx
+=================================================================
+import { RoomContext } from './context/RoomContext';
+import ReactDOM from 'react-dom/client'
+import React from 'react'
+import App from './App'
+import './style/index.css';
+
+
+ReactDOM
+  .createRoot(document.getElementById('root'))
+  .render(
+    <RoomContext>
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    </RoomContext>,
+  )
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\pages\Home.jsx
+=================================================================
+import { BookForm, HeroSlider, Rooms, ScrollToTop } from '../components';
+
+
+const Home = () => {
+
+  return (
+    <div>
+      <ScrollToTop />
+
+      <HeroSlider />
+
+      <div className='container mx-auto relative'>
+
+        <div className='bg-accent/20 mt-4 p-4 lg:absolute lg:left-0 lg:right-0 lg:p-0 lg:-top-12 lg:z-30 lg:shadow-xl'>
+          <BookForm />
+        </div>
+
+      </div>
+
+      <Rooms />
+    </div>
+  );
+};
+
+export default Home;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\pages\index.js
+=================================================================
+export { default as RoomDetails } from './RoomDetails';
+export { default as Home } from './Home';
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\pages\RoomDetails.jsx
+=================================================================
+import { AdultsDropdown, CheckIn, CheckOut, KidsDropdown, ScrollToTop } from '../components';
+import { useRoomContext } from '../context/RoomContext';
+import { hotelRules } from '../constants/data';
+import { useParams } from 'react-router-dom';
+import { FaCheck } from 'react-icons/fa';
+
+
+const RoomDetails = () => {
+
+  const { id } = useParams(); // id get form url (/room/:id) as string...
+  const { rooms } = useRoomContext();
+
+  const room = rooms.find(room => room.id === +id);
+
+  // for (const key in room) {
+  //   console.log(key);
+  // }
+
+  const { name, description, facilities, price, imageLg } = room ?? {};
+
+  return (
+    <section>
+
+      <ScrollToTop />
+
+      <div className='bg-room h-[560px] relative flex justify-center items-center bg-cover bg-center'>
+        <div className='absolute w-full h-full bg-black/70' />
+        <h1 className='text-6xl text-white z-20 font-primary text-center'>{name} Details</h1>
+      </div>
+
+
+      <div className='container mx-auto'>
+        <div className='flex flex-col lg:flex-row lg:gap-x-8 h-full py-24'>
+
+          {/* ⬅️⬅️⬅️ left side ⬅️⬅️⬅️ */}
+          <div className='w-full lg:w-[60%] h-full text-justify'>
+
+            <h2 className='h2'>{name}</h2>
+            <p className='mb-8'>{description}</p>
+            <img className='mb-8' src={imageLg} alt="roomImg" />
+
+            <div className='mt-12'>
+              <h3 className='h3 mb-3'></h3>
+              <p className='mb-12'> Lorem ipsum dolor sit amet consectetur adipisicing elit. Blanditiis accusantium sapiente quas quos explicabo, odit nostrum? Reiciendis illum dolor eos dicta. Illum vero at hic nostrum sint et quod porro. </p>
+
+              {/* icons grid */}
+              <div className="grid grid-cols-3 gap-6 mb-12">
+                {
+                  facilities.map((item, index) =>
+                    <div key={index} className='flex items-center gap-x-3 flex-1'>
+                      <div className='text-3xl text-accent'>{<item.icon />}</div>
+                      <div className='text-base'>{item.name}</div>
+                    </div>
+                  )
+                }
+              </div>
+            </div>
+
+          </div>
+
+
+          {/* ➡️➡️➡️ right side ➡️➡️➡️ */}
+          <div className='w-full lg:w-[40%] h-full'>
+
+            {/* reservation */}
+            <div className='py-8 px-6 bg-accent/20 mb-12'>
+
+              <div className='flex flex-col space-y-4 mb-4'>
+                <h3>Your Reservation</h3>
+                <div className='h-[60px]'> <CheckIn /> </div>
+                <div className='h-[60px]'> <CheckOut /> </div>
+                <div className='h-[60px]'> <AdultsDropdown /> </div>
+                <div className='h-[60px]'> <KidsDropdown /> </div>
+              </div>
+
+              <button className='btn btn-lg btn-primary w-full'>
+                book now for ${price}
+              </button>
+            </div>
+
+            <div>
+              <h3 className='h3'>Hotel Rules</h3>
+              <p className='mb-6 text-justify'>
+                Lorem ipsum dolor sit amet consectetur adipisicing elit. Commodi dolores iure fugiat eligendi illo est, aperiam quasi distinctio necessitatibus suscipit nemo provident eaque voluptas earum.
+              </p>
+
+              <ul className='flex flex-col gap-y-4'>
+                {
+                  hotelRules.map(({ rules }, idx) =>
+                    <li key={idx} className='flex items-center gap-x-4'>
+                      <FaCheck className='text-accent' />
+                      {rules}
+                    </li>
+                  )
+                }
+              </ul>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+  );
+};
+
+export default RoomDetails;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\style\datepicker.css
+=================================================================
+.react-datepicker {
+  background   : white;
+  border       : none;
+  border-radius: 0;
+  font-family  : 'Barlow';
+  border       : 1px solid #aa8453;
+  font-size    : 0.9rem;
+}
+
+.react-datepicker__header {
+  border : #aa8453;
+  color  : #fff;
+  padding: 0;
+}
+
+.react-datepicker-wrapper {
+  padding   : 0 2rem;
+  height    : 100%;
+  display   : flex;
+  background: white;
+}
+
+.react-datepicker-popper {
+  padding-top: 0;
+}
+
+.react-datepicker-popper[data-placement^='bottom'] {
+  padding-top: 0;
+}
+
+.react-datepicker__triangle {
+  display: none;
+}
+
+.react-datepicker__current-month {
+  background: #aa8453;
+  color     : white;
+  padding   : 0.3rem 0;
+}
+
+.react-datepicker__navigation {
+  top: 5px;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: #fff;
+}
+
+.react-datepicker__input-container input {
+  outline   : none;
+  background: none;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background   : #aa8453;
+  border-radius: 0;
+}
+
+.react-datepicker__day--selected:hover {
+  background: #906d40;
+}
+
+.react-datepicker__current-month {
+  font-weight: 500;
+}
+
+.react-datepicker__day:hover {
+  border-radius: 0;
+}
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\style\index.css
+=================================================================
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Barlow:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Gilda+Display&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+  html {
+    @apply scroll-smooth scroll-pt-6;
+  }
+
+  /* 
+  🟨🟨🟨🟨🟨🟨🟨🟨🟨
+  Browser Main Scrollbar 
+  🟨🟨🟨🟨🟨🟨🟨🟨🟨
+  */
+
+  html::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  html::-webkit-scrollbar-thumb {
+    border-radius   : 2px;
+    background-color: #a37d4c;
+  }
+
+  html::-webkit-scrollbar-track {
+    background-color: #FFFFFF;
+  }
+
+  body {
+    @apply font-secondary text-primary;
+  }
+
+  input::placeholder {
+    @apply text-primary;
+  }
+
+  .h2 {
+    @apply font-primary text-[45px] mb-4;
+  }
+
+  .h3 {
+    @apply text-2xl font-primary font-semibold tracking-[1px] mb-2;
+  }
+
+  .btn {
+    @apply text-[15px] tracking-[3px] font-tertiary uppercase text-white flex-1 transition-all px-8 flex justify-center items-center;
+  }
+
+  .btn-sm {
+    @apply h-[48px];
+  }
+
+  .btn-lg {
+    @apply h-[60px];
+  }
+
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-hover;
+  }
+
+  .btn-secondary {
+    @apply bg-primary hover:bg-accent;
+  }
+
+  .btn-white {
+    @apply bg-white text-[#0a0a0a];
+  }
+}
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\src\utils\ScrollToTop.js
+=================================================================
+import { useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+
+const ScrollToTop = () => {
+
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+};
+
+export default ScrollToTop;
+
+
+=================================================================
+FILE PATH: Project_Demo\HotelBooking--TailwindCSS-Fundamental-Project-3\vite.config.js
+=================================================================
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import svgr from 'vite-plugin-svgr'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react(),  svgr()],
+})

@@ -5,118 +5,135 @@
  */
 
 import { useState, useCallback } from 'react';
-import { supabase } from '../utils/supabaseClient';
 import { notifySuccess, notifyError } from '../utils/notifications';
+// supabase client import removed as it is now encapsulated in services
 
-export const useCRUD = (tableName, selectQuery = '*') => {
+/**
+ * Defines the required structure for the service layer API used by this hook.
+ *
+ * @typedef {object} CRUDServiceAPI
+ * @property {string} resourceName - Name of the resource (e.g., 'Room Types') for logging and notifications.
+ * @property {(filters?: object, orderBy?: { column: string, ascending?: boolean }) => Promise<Array<any>>} fetch - Function to fetch data.
+ * @property {(values: object, options?: object) => Promise<any>} create - Function to create a new record.
+ * @property {(id: number, values: object, options?: object) => Promise<any>} update - Function to update an existing record.
+ * @property {(id: number, options?: object) => Promise<any>} remove - Function to delete a record.
+ */
+
+/**
+ * Custom Hook: useCRUD
+ * Reusable CRUD operations, decoupled from direct Supabase calls via a Service Layer API.
+ * Handles: Fetch, Create, Update, Delete with loading/error states
+ *
+ * @param {CRUDServiceAPI} api - An object containing service functions (fetch, create, update, remove) and resourceName.
+ */
+export const useCRUD = ({ resourceName, fetch: fetchApi, create: createApi, update: updateApi, remove: removeApi }) => {
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Ensure the resource name is available for logging
+  const name = resourceName || 'Resource';
 
   // FETCH
   const fetchData = useCallback(async (filters = {}, orderBy = null) => {
+    if (!fetchApi) {
+        console.error(`❌ ${name} does not support fetching.`);
+        return [];
+    }
+    
     try {
       setIsLoading(true);
       setError(null);
 
-      let query = supabase.from(tableName).select(selectQuery);
+      // The service layer function handles the actual DB querying, filtering, and ordering
+      const result = await fetchApi(filters, orderBy);
 
-      // Apply filters
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-          query = query.eq(key, value);
-        }
-      });
-
-      // Apply ordering
-      if (orderBy) {
-        query = query.order(orderBy.column, { ascending: orderBy.ascending !== false });
-      }
-
-      const { data: result, error: err } = await query;
-
-      if (err) throw err;
-      console.log(`✅ Fetched ${tableName}:`, result);
+      console.log(`✅ Fetched ${name}:`, result);
       setData(result || []);
       return result || [];
     } catch (err) {
-      console.error(`❌ Error fetching ${tableName}:`, err);
+      console.error(`❌ Error fetching ${name}:`, err);
       setError(err.message);
-      notifyError(`Error fetching ${tableName}: ${err.message}`);
+      notifyError(`Error fetching ${name}: ${err.message}`);
       return [];
     } finally {
       setIsLoading(false);
     }
-  }, [tableName, selectQuery]);
+  }, [name, fetchApi, setData]);
 
   // CREATE
-  const create = useCallback(async (values, successMessage = 'Created successfully') => {
+  const create = useCallback(async (values, successMessage = `Created ${name} successfully`) => {
+    if (!createApi) {
+        console.error(`❌ ${name} does not support creation.`);
+        throw new Error('Creation not supported');
+    }
+
     try {
       setIsLoading(true);
-      const { data: result, error: err } = await supabase
-        .from(tableName)
-        .insert([values])
-        .select();
-
-      if (err) throw err;
-      console.log(`✅ Created in ${tableName}:`, result);
+      
+      const result = await createApi(values);
+      
+      console.log(`✅ Created ${name}:`, result);
       notifySuccess(successMessage);
-      await fetchData();
-      return result?.[0];
+      await fetchData(); // Refresh data after creation
+      return result;
     } catch (err) {
-      console.error(`❌ Error creating in ${tableName}:`, err);
-      notifyError(`Error creating: ${err.message}`);
+      console.error(`❌ Error creating ${name}:`, err);
+      notifyError(`Error creating ${name}: ${err.message}`);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [tableName, fetchData]);
+  }, [name, createApi, fetchData]);
 
   // UPDATE
-  const update = useCallback(async (id, values, successMessage = 'Updated successfully') => {
+  const update = useCallback(async (id, values, successMessage = `Updated ${name} successfully`) => {
+    if (!updateApi) {
+        console.error(`❌ ${name} does not support updating.`);
+        throw new Error('Updating not supported');
+    }
+
     try {
       setIsLoading(true);
-      const { data: result, error: err } = await supabase
-        .from(tableName)
-        .update(values)
-        .eq('id', id)
-        .select();
+      
+      const result = await updateApi(id, values);
 
-      if (err) throw err;
-      console.log(`✅ Updated in ${tableName}:`, result);
+      console.log(`✅ Updated ${name}:`, result);
       notifySuccess(successMessage);
-      await fetchData();
-      return result?.[0];
+      await fetchData(); // Refresh data after update
+      return result;
     } catch (err) {
-      console.error(`❌ Error updating in ${tableName}:`, err);
-      notifyError(`Error updating: ${err.message}`);
+      console.error(`❌ Error updating ${name}:`, err);
+      notifyError(`Error updating ${name}: ${err.message}`);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [tableName, fetchData]);
+  }, [name, updateApi, fetchData]);
 
   // DELETE
-  const remove = useCallback(async (id, successMessage = 'Deleted successfully') => {
+  const remove = useCallback(async (id, successMessage = `Deleted ${name} successfully`) => {
+    if (!removeApi) {
+        console.error(`❌ ${name} does not support deletion.`);
+        throw new Error('Deletion not supported');
+    }
+
     try {
       setIsLoading(true);
-      const { error: err } = await supabase
-        .from(tableName)
-        .delete()
-        .eq('id', id);
+      
+      await removeApi(id);
 
-      if (err) throw err;
-      console.log(`✅ Deleted from ${tableName}`);
+      console.log(`✅ Deleted ${name}`);
       notifySuccess(successMessage);
-      await fetchData();
+      await fetchData(); // Refresh data after deletion
     } catch (err) {
-      console.error(`❌ Error deleting from ${tableName}:`, err);
-      notifyError(`Error deleting: ${err.message}`);
+      console.error(`❌ Error deleting ${name}:`, err);
+      notifyError(`Error deleting ${name}: ${err.message}`);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [tableName, fetchData]);
+  }, [name, removeApi, fetchData]);
 
   return {
     data,

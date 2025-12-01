@@ -1,5 +1,4 @@
 import { BookForm, Rooms, ScrollToTop, CategoryFilter } from "../components";
-import images from "../assets";
 import {
   FaCrown,
   FaConciergeBell,
@@ -8,6 +7,8 @@ import {
 } from "react-icons/fa";
 import { useRoomContext } from "../context/RoomContext";
 import { useMemo } from "react";
+
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
 
 const highlights = [
   {
@@ -42,7 +43,7 @@ const stats = [
 ];
 
 const RoomsPage = () => {
-  const { rooms, clearAllFilters } = useRoomContext();
+  const { rooms } = useRoomContext();
 
   const resultText = useMemo(() => {
     if (!rooms?.length) return "No matching rooms";
@@ -56,7 +57,7 @@ const RoomsPage = () => {
 
       <section className="relative h-[60vh] min-h-[480px] flex items-center justify-center text-center">
         <img
-          src={images.Slider3}
+          src={`${STORAGE_URL}/img/heroSlider/3.jpg`}
           alt="Panoramic hotel suite"
           className="absolute inset-0 h-full w-full object-cover"
         />
@@ -133,7 +134,7 @@ const RoomsPage = () => {
         </div>
       </section>
 
-      <Rooms key={rooms?.length || 0} />
+      <Rooms />
     </div>
   );
 };

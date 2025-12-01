@@ -1,203 +1,498 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { supabase } from '../utils/supabaseClient';
 
 const AuthInfo = createContext();
 
-const enrichUser = (data) => ({
-  avatar: '',
-  phone: '',
-  country: '',
-  city: '',
-  preferences: [],
-  language: 'en',
-  newsletter: true,
-  bio: '',
-  ...data,
-});
+/**
+ * Transform Supabase user to application user shape
+ */
+const enrichUser = (supabaseUser, userMetadata = {}) => {
+  if (!supabaseUser) return null;
 
-const persistUserSession = (user) => {
-  localStorage.setItem('hotel_user', JSON.stringify(user));
+  return {
+    id: supabaseUser.id,
+    email: supabaseUser.email,
+    name: userMetadata.full_name || supabaseUser.user_metadata?.full_name || '',
+    phone: userMetadata.phone || supabaseUser.user_metadata?.phone || '',
+    avatar: userMetadata.avatar_url || supabaseUser.user_metadata?.avatar_url || '',
+    role: userMetadata.role || supabaseUser.user_metadata?.role || 'user',
+    country: userMetadata.country || supabaseUser.user_metadata?.country || '',
+    city: userMetadata.city || supabaseUser.user_metadata?.city || '',
+    preferences: userMetadata.preferences || supabaseUser.user_metadata?.preferences || [],
+    language: userMetadata.language || supabaseUser.user_metadata?.language || 'en',
+    newsletter: userMetadata.newsletter !== false,
+    bio: userMetadata.bio || supabaseUser.user_metadata?.bio || '',
+    emailVerified: supabaseUser.email_confirmed_at !== null,
+    createdAt: supabaseUser.created_at,
+  };
 };
 
-const updateStoredUsers = (updatedUser) => {
-  const users = JSON.parse(localStorage.getItem('hotel_users') || '[]');
-  const index = users.findIndex((u) => u.id === updatedUser.id);
-  if (index !== -1) {
-    users[index] = { ...users[index], ...updatedUser };
-    localStorage.setItem('hotel_users', JSON.stringify(users));
+/**
+ * Fetch user profile from database
+ */
+const fetchUserProfile = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.warn('Profile not found in DB, using auth metadata:', error);
+      return null;
+    }
+    return data;
+  } catch (err) {
+    console.error('Error fetching user profile:', err);
+    return null;
+  }
+};
+
+/**
+ * Create or update user profile in database
+ */
+const upsertUserProfile = async (userId, userData) => {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          full_name: userData.name,
+          phone: userData.phone,
+          avatar_url: userData.avatar,
+          country: userData.country,
+          city: userData.city,
+          preferences: userData.preferences || [],
+          language: userData.language || 'en',
+          newsletter: userData.newsletter !== false,
+          bio: userData.bio,
+          role: userData.role || 'user',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
+
+    if (error) {
+      console.error('Error upserting profile:', error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Error in upsertUserProfile:', err);
+    return false;
   }
 };
 
 export const AuthContext = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [session, setSession] = useState(null);
 
-  // Check if user is logged in on mount
+  /**
+   * Initialize auth state on app load
+   */
   useEffect(() => {
-    const storedUser = localStorage.getItem('hotel_user');
-    if (storedUser) {
+    const initializeAuth = async () => {
       try {
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-        localStorage.removeItem('hotel_user');
+        setLoading(true);
+        setError(null);
+
+        // Check if user has existing session
+        const {
+          data: { session: currentSession },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          setError(sessionError.message);
+          setUser(null);
+          setSession(null);
+        } else if (currentSession?.user) {
+          // User is logged in
+          setSession(currentSession);
+
+          // Fetch extended profile from database
+          const profile = await fetchUserProfile(currentSession.user.id);
+          const enrichedUser = enrichUser(currentSession.user, profile);
+          setUser(enrichedUser);
+        } else {
+          // No active session
+          setSession(null);
+          setUser(null);
+        }
+      } catch (err) {
+        console.error('Error initializing auth:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-    }
-    setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
-  // Admin login (email/password only)
-  const adminLogin = async (email, password) => {
-    setLoading(true);
-    
-    // TODO: Replace with actual Supabase authentication
-    // Mock admin credentials (remove in production)
-    const mockAdmin = {
-      email: 'admin@hotel.com',
-      password: 'admin123'
+  /**
+   * Listen for auth state changes
+   */
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      console.log('Auth state changed:', event);
+      setSession(newSession);
+
+      if (newSession?.user) {
+        const profile = await fetchUserProfile(newSession.user.id);
+        const enrichedUser = enrichUser(newSession.user, profile);
+        setUser(enrichedUser);
+        setError(null);
+      } else {
+        setUser(null);
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription?.unsubscribe();
     };
+  }, []);
 
-    if (email === mockAdmin.email && password === mockAdmin.password) {
-      const userData = enrichUser({
-        id: '1',
-        email: email,
-        name: 'Admin User',
-        role: 'admin',
-        createdAt: new Date().toISOString()
+  /**
+   * Email/Password Login
+   */
+  const login = useCallback(async (email, password) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      
-      persistUserSession(userData);
-      setUser(userData);
+
+      if (loginError) {
+        setError(loginError.message);
+        return { success: false, error: loginError.message };
+      }
+
+      if (data?.session?.user) {
+        const profile = await fetchUserProfile(data.session.user.id);
+        const enrichedUser = enrichUser(data.session.user, profile);
+        setUser(enrichedUser);
+        setSession(data.session);
+        return { success: true, user: enrichedUser };
+      }
+
+      return { success: false, error: 'Login failed' };
+    } catch (err) {
+      const errorMsg = err.message || 'An error occurred during login';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
       setLoading(false);
-      return { success: true, user: userData };
-    } else {
-      setLoading(false);
-      return { success: false, error: 'Invalid email or password' };
     }
-  };
+  }, []);
 
-  // User login (email/password)
-  const login = async (email, password) => {
-    setLoading(true);
-    
-    // TODO: Replace with actual Supabase authentication
-    // For now, check if user exists in localStorage (mock)
-    const users = JSON.parse(localStorage.getItem('hotel_users') || '[]');
-    const foundUser = users.find(u => u.email === email && u.password === password);
+  /**
+   * Admin Login (same as login, but with role check)
+   */
+  const adminLogin = useCallback(async (email, password) => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    if (foundUser) {
-      const userData = enrichUser({
-        ...foundUser,
-        password: undefined // Don't store password in user object
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      
-      persistUserSession(userData);
-      setUser(userData);
+
+      if (loginError) {
+        setError(loginError.message);
+        return { success: false, error: loginError.message };
+      }
+
+      if (data?.session?.user) {
+        const profile = await fetchUserProfile(data.session.user.id);
+        const enrichedUser = enrichUser(data.session.user, profile);
+
+        // Check if user is admin
+        if (enrichedUser.role !== 'admin') {
+          await supabase.auth.signOut();
+          const adminError = 'User does not have admin privileges';
+          setError(adminError);
+          setUser(null);
+          setSession(null);
+          return { success: false, error: adminError };
+        }
+
+        setUser(enrichedUser);
+        setSession(data.session);
+        return { success: true, user: enrichedUser };
+      }
+
+      return { success: false, error: 'Admin login failed' };
+    } catch (err) {
+      const errorMsg = err.message || 'An error occurred during admin login';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
       setLoading(false);
-      return { success: true, user: userData };
-    } else {
-      setLoading(false);
-      return { success: false, error: 'Invalid email or password' };
     }
-  };
+  }, []);
 
-  // User registration
-  const register = async (name, email, password) => {
-    setLoading(true);
-    
-    // TODO: Replace with actual Supabase authentication
-    // Check if user already exists
-    const users = JSON.parse(localStorage.getItem('hotel_users') || '[]');
-    const existingUser = users.find(u => u.email === email);
+  /**
+   * User Registration
+   */
+  const register = useCallback(async (email, password, name = '') => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    if (existingUser) {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+            role: 'user',
+          },
+        },
+      });
+
+      if (signUpError) {
+        setError(signUpError.message);
+        return { success: false, error: signUpError.message };
+      }
+
+      if (data?.user) {
+        // Create profile in database
+        const enrichedUser = enrichUser(data.user, { full_name: name, role: 'user' });
+        await upsertUserProfile(data.user.id, enrichedUser);
+
+        // If email confirmation is not required, auto-login
+        if (data?.session) {
+          setSession(data.session);
+          setUser(enrichedUser);
+          return { success: true, user: enrichedUser };
+        }
+
+        // Email confirmation required
+        return {
+          success: true,
+          user: enrichedUser,
+          needsEmailConfirmation: true,
+        };
+      }
+
+      return { success: false, error: 'Registration failed' };
+    } catch (err) {
+      const errorMsg = err.message || 'An error occurred during registration';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
       setLoading(false);
-      return { success: false, error: 'Email already registered' };
     }
+  }, []);
 
-    // Create new user
-    const newUser = enrichUser({
-      id: Date.now().toString(),
-      name,
-      email,
-      password, // In production, this should be hashed
-      role: 'user',
-      createdAt: new Date().toISOString()
-    });
+  /**
+   * OAuth Login (Google, etc.)
+   */
+  const loginWithOAuth = useCallback(async (provider) => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    users.push(newUser);
-    localStorage.setItem('hotel_users', JSON.stringify(users));
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        },
+      });
 
-    // Auto login after registration
-    const userData = {
-      ...newUser,
-      password: undefined
-    };
-    
-    persistUserSession(userData);
-    setUser(userData);
-    setLoading(false);
-    return { success: true, user: userData };
-  };
+      if (oauthError) {
+        setError(oauthError.message);
+        return { success: false, error: oauthError.message };
+      }
 
-  // OAuth login (Google, Facebook, etc.)
-  const loginWithOAuth = async (provider) => {
-    setLoading(true);
-    
-    // TODO: Replace with actual Supabase OAuth
-    // For now, simulate OAuth login
-    // In production: await supabase.auth.signInWithOAuth({ provider })
-    
-    // Mock OAuth user
-    const oauthUser = enrichUser({
-      id: `oauth_${Date.now()}`,
-      email: `${provider}@example.com`,
-      name: `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`,
-      role: 'user',
-      provider: provider,
-      createdAt: new Date().toISOString()
-    });
+      return { success: true };
+    } catch (err) {
+      const errorMsg = err.message || `An error occurred during ${provider} login`;
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    persistUserSession(oauthUser);
-    setUser(oauthUser);
-    setLoading(false);
-    
-    return { success: true, user: oauthUser };
-  };
+  /**
+   * Logout
+   */
+  const logout = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  const updateUserProfile = (updates) => {
-    setUser(prev => {
-      if (!prev) return prev;
-      const updatedUser = { ...prev, ...updates };
-      persistUserSession(updatedUser);
-      updateStoredUsers(updatedUser);
-      return updatedUser;
-    });
-  };
+      const { error: logoutError } = await supabase.auth.signOut();
 
-  const logout = () => {
-    localStorage.removeItem('hotel_user');
-    setUser(null);
-  };
+      if (logoutError) {
+        setError(logoutError.message);
+        return { success: false, error: logoutError.message };
+      }
 
-  const isAuthenticated = () => {
-    return user !== null;
-  };
+      setUser(null);
+      setSession(null);
+      return { success: true };
+    } catch (err) {
+      const errorMsg = err.message || 'An error occurred during logout';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const isAdmin = () => {
+  /**
+   * Password Reset Request
+   */
+  const resetPassword = useCallback(async (email) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) {
+        setError(resetError.message);
+        return { success: false, error: resetError.message };
+      }
+
+      return { success: true };
+    } catch (err) {
+      const errorMsg = err.message || 'An error occurred during password reset';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Update Password (after reset or for logged-in user)
+   */
+  const updatePassword = useCallback(async (newPassword) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        setError(updateError.message);
+        return { success: false, error: updateError.message };
+      }
+
+      return { success: true };
+    } catch (err) {
+      const errorMsg = err.message || 'An error occurred updating password';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Update User Profile
+   */
+  const updateUserProfile = useCallback(async (updates) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      // Update auth user metadata
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          full_name: updates.name,
+          phone: updates.phone,
+          avatar_url: updates.avatar,
+          country: updates.country,
+          city: updates.city,
+          bio: updates.bio,
+        },
+      });
+
+      if (authError) {
+        setError(authError.message);
+        return { success: false, error: authError.message };
+      }
+
+      // Update profile in database
+      const success = await upsertUserProfile(user.id, updates);
+
+      if (success) {
+        const updatedUser = { ...user, ...updates };
+        setUser(updatedUser);
+        return { success: true, user: updatedUser };
+      }
+
+      return { success: false, error: 'Failed to update profile' };
+    } catch (err) {
+      const errorMsg = err.message || 'An error occurred updating profile';
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  /**
+   * Helper functions
+   */
+  const isAuthenticated = useCallback(() => {
+    return user !== null && session !== null;
+  }, [user, session]);
+
+  const isAdmin = useCallback(() => {
     return user?.role === 'admin';
-  };
+  }, [user]);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   const shareWithChildren = {
+    // State
     user,
     loading,
+    error,
+    session,
+
+    // Auth methods
     login,
     adminLogin,
     register,
     loginWithOAuth,
     logout,
+    resetPassword,
+    updatePassword,
+    updateUserProfile,
+
+    // Helper methods
     isAuthenticated,
     isAdmin,
-    updateUserProfile,
+    clearError,
   };
 
   return (
@@ -207,5 +502,11 @@ export const AuthContext = ({ children }) => {
   );
 };
 
-export const useAuth = () => useContext(AuthInfo);
+export const useAuth = () => {
+  const context = useContext(AuthInfo);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthContext provider');
+  }
+  return context;
+};
 

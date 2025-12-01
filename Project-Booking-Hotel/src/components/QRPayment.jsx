@@ -169,4 +169,3 @@ const QRPayment = ({
 };
 
 export default QRPayment;
-

@@ -1,0 +1,353 @@
+import { supabase } from '../utils/supabaseClient';
+
+/**
+ * Service layer for room and pricing operations
+ */
+
+export const fetchRoomTypes = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('room_types')
+      .select('*')
+      .eq('is_active', true)
+      .order('code', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching room types:', err);
+    return [];
+  }
+};
+
+export const createRoomType = async (roomTypeData) => {
+  try {
+    const { data, error } = await supabase
+      .from('room_types')
+      .insert([roomTypeData])
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error creating room type:', err);
+    throw err;
+  }
+};
+
+export const updateRoomType = async (id, roomTypeData) => {
+  try {
+    const { data, error } = await supabase
+      .from('room_types')
+      .update(roomTypeData)
+      .eq('id', id)
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error updating room type:', err);
+    throw err;
+  }
+};
+
+export const deleteRoomType = async (id) => {
+  try {
+    const { error } = await supabase
+      .from('room_types')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Error deleting room type:', err);
+    throw err;
+  }
+};
+
+export const fetchRooms = async (roomTypeId = null) => {
+  try {
+    let query = supabase.from('rooms').select(`
+      *,
+      room_types:room_type_id (*)
+    `);
+    
+    if (roomTypeId) {
+      query = query.eq('room_type_id', roomTypeId);
+    }
+    
+    const { data, error } = await query.order('room_no', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching rooms:', err);
+    return [];
+  }
+};
+
+export const createRoom = async (roomData) => {
+  try {
+    const { data, error } = await supabase
+      .from('rooms')
+      .insert([roomData])
+      .select(`*, room_types:room_type_id (*)`);
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error creating room:', err);
+    throw err;
+  }
+};
+
+export const updateRoom = async (id, roomData) => {
+  try {
+    const { data, error } = await supabase
+      .from('rooms')
+      .update(roomData)
+      .eq('id', id)
+      .select(`*, room_types:room_type_id (*)`);
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error updating room:', err);
+    throw err;
+  }
+};
+
+export const deleteRoom = async (id) => {
+  try {
+    const { error } = await supabase
+      .from('rooms')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Error deleting room:', err);
+    throw err;
+  }
+};
+
+export const fetchRoomImages = async (roomTypeId = null) => {
+  try {
+    let query = supabase.from('room_images').select('*');
+    
+    if (roomTypeId) {
+      query = query.eq('room_type_id', roomTypeId);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    
+    console.log('🖼️ Fetch Room Images - Result:', { count: data?.length, data });
+    
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching room images:', err);
+    return [];
+  }
+};
+
+export const fetchRoomsWithImages = async () => {
+  try {
+    // 1. Fetch all rooms with their room_type relations
+    const roomsData = await fetchRooms();
+
+    // 2. For each room, fetch its room_type's images from room_images table
+    const enrichedRooms = await Promise.all(
+      roomsData.map(async (room) => {
+        const roomTypeId = room.room_type_id;
+        
+        try {
+          // Fetch images for this room type from Supabase
+          const images = await fetchRoomImages(roomTypeId);
+          
+          // Get primary image (first one) and lg variant
+          const primaryImage = images?.length > 0 ? images[0] : null;
+          
+          return {
+            ...room,
+            image_url: primaryImage?.image_url || null,
+            image_lg_url: primaryImage?.image_lg_url || null,
+            all_images: images || [],
+          };
+        } catch (imgErr) {
+          console.warn(`Failed to load images for room type ${roomTypeId}:`, imgErr);
+          return {
+            ...room,
+            image_url: null,
+            image_lg_url: null,
+            all_images: [],
+          };
+        }
+      })
+    );
+
+    console.log(`✅ Loaded ${enrichedRooms.length} rooms from Supabase with real Storage images`);
+    return enrichedRooms;
+  } catch (err) {
+    console.error('Error fetching rooms with images:', err);
+    return [];
+  }
+};
+
+export const checkRoomAvailability = async (roomId, checkIn, checkOut, excludeBookingId = null) => {
+  try {
+    let query = supabase
+      .from('bookings')
+      .select('id')
+      .eq('room_id', roomId)
+      .neq('status', 'cancelled')
+      .lt('check_in', checkOut)
+      .gt('check_out', checkIn);
+    
+    if (excludeBookingId) {
+      query = query.neq('id', excludeBookingId);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data && data.length === 0);
+  } catch (err) {
+    console.error('Error checking availability:', err);
+    return true;
+  }
+};
+
+export const fetchPriceRules = async (roomTypeId) => {
+  try {
+    const { data, error } = await supabase
+      .from('price_rules')
+      .select('*')
+      .eq('room_type_id', roomTypeId)
+      .eq('is_active', true)
+      .order('priority', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching price rules:', err);
+    return [];
+  }
+};
+
+export const fetchPromotions = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('promotions')
+      .select('*')
+      .eq('is_active', true)
+      .order('end_date', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching promotions:', err);
+    return [];
+  }
+};
+
+export const fetchRoomReviews = async (roomTypeId) => {
+  try {
+    const { data, error } = await supabase
+      .from('room_reviews')
+      .select('*')
+      .eq('room_type_id', roomTypeId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching reviews:', err);
+    return [];
+  }
+};
+
+export const createReview = async (reviewData) => {
+  try {
+    const { data, error } = await supabase
+      .from('room_reviews')
+      .insert([reviewData])
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error creating review:', err);
+    return null;
+  }
+};
+
+export const hasUserBookedRoomType = async (userId, roomTypeId) => {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('room_type_id', roomTypeId)
+      .neq('status', 'cancelled')
+      .limit(1);
+    if (error) throw error;
+    return (data && data.length > 0);
+  } catch (err) {
+    console.error('Error checking user booking:', err);
+    return false;
+  }
+};
+
+/**
+ * Get primary image for a room type
+ * @param {string} roomTypeId - Room type UUID
+ * @returns {object|null} Image object with image_url and image_lg_url, or null
+ */
+export const getPrimaryImage = async (roomTypeId) => {
+  try {
+    const { data, error } = await supabase
+      .from('room_images')
+      .select('*')
+      .eq('room_type_id', roomTypeId)
+      .order('display_order', { ascending: true })
+      .limit(1);
+    
+    if (error) throw error;
+    return data?.length > 0 ? data[0] : null;
+  } catch (err) {
+    console.error(`Error fetching primary image for room type ${roomTypeId}:`, err);
+    return null;
+  }
+};
+
+/**
+ * Get all images for a room type
+ * @param {string} roomTypeId - Room type UUID
+ * @returns {array} Array of image objects
+ */
+export const getAllImages = async (roomTypeId) => {
+  try {
+    const { data, error } = await supabase
+      .from('room_images')
+      .select('*')
+      .eq('room_type_id', roomTypeId)
+      .order('display_order', { ascending: true });
+    
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error(`Error fetching all images for room type ${roomTypeId}:`, err);
+    return [];
+  }
+};
+
+export default {
+  fetchRoomTypes,
+  createRoomType,
+  updateRoomType,
+  deleteRoomType,
+  fetchRooms,
+  createRoom,
+  updateRoom,
+  deleteRoom,
+  fetchRoomImages,
+  fetchRoomsWithImages,
+  checkRoomAvailability,
+  fetchPriceRules,
+  fetchPromotions,
+  fetchRoomReviews,
+  createReview,
+  hasUserBookedRoomType,
+  getPrimaryImage,
+  getAllImages,
+};

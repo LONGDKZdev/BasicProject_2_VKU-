@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { FaSpinner } from 'react-icons/fa';
 
 const ProtectedRoute = ({ children, requireAdmin = false, disallowAdmin = false, redirectTo }) => {
-  const { isAuthenticated, isAdmin, loading } = useAuth();
+  const { isAuthenticated, isAdmin, loading, session } = useAuth();
   const location = useLocation();
   const fallbackLogin = redirectTo || (requireAdmin ? '/admin/login' : '/login');
 
@@ -12,13 +12,14 @@ const ProtectedRoute = ({ children, requireAdmin = false, disallowAdmin = false,
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <FaSpinner className="animate-spin text-4xl text-accent mx-auto mb-4" />
-          <p className="text-gray-600">Checking...</p>
+          <p className="text-gray-600">Checking authentication...</p>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated()) {
+  // Check if user has valid session
+  if (!isAuthenticated() || !session) {
     // Redirect to login page with return url
     return <Navigate to={fallbackLogin} state={{ from: location }} replace />;
   }

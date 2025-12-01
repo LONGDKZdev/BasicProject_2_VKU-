@@ -1,38 +1,23 @@
 import { useState, useEffect } from 'react';
-import { useCRUD, useModalForm } from '../../hooks';
+import { FaCheck } from 'react-icons/fa';
 import { AdminHeader, AdminTable, AdminModal } from '../../features/admin';
+import {
+  fetchRoomTypesForAdmin,
+  createRoomType,
+  updateRoomTypeAdmin,
+  deleteRoomTypeAdmin,
+} from '../../services/adminService';
 import { supabase } from '../../utils/supabaseClient';
 
 const RoomTypesManagement = () => {
-  const [amenities, setAmenities] = useState([]); // State for available amenities
-  const { data: roomTypes, isLoading, error, fetchData, create, update, remove } = useCRUD(
-    'room_types',
-    '*'
-  );
+  const [roomTypes, setRoomTypes] = useState([]);
+  const [amenities, setAmenities] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   
-  // Fetch amenities from DB on mount
-  useEffect(() => {
-    const fetchAmenities = async () => {
-      const { data, error } = await supabase.from('amenities').select('name').order('name');
-      if (error) {
-        console.error('Error fetching amenities:', error);
-      } else {
-        setAmenities(data?.map(item => item.name) || []);
-      }
-    };
-    fetchAmenities();
-  }, []);
-
-  const {
-    isModalOpen,
-    editingItem,
-    formData,
-    updateFormData,
-    openCreateModal,
-    openEditModal,
-    closeModal,
-    resetFormData
-  } = useModalForm({
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [formData, setFormData] = useState({
     code: '',
     name: '',
     description: '',
@@ -43,10 +28,73 @@ const RoomTypesManagement = () => {
     is_active: true
   });
 
-  // Fetch room types on mount
+  // Fetch room types and amenities
   useEffect(() => {
-    fetchData({}, { column: 'code', ascending: true });
-  }, [fetchData]);
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [roomTypesData, amenitiesData] = await Promise.all([
+        fetchRoomTypesForAdmin(),
+        supabase.from('amenities').select('name').order('name')
+      ]);
+      
+      setRoomTypes(roomTypesData);
+      setAmenities(amenitiesData.data?.map(item => item.name) || []);
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError('Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateFormData = (updates) => {
+    setFormData(prev => ({ ...prev, ...updates }));
+  };
+
+  const resetFormData = () => {
+    setFormData({
+      code: '',
+      name: '',
+      description: '',
+      base_capacity: '',
+      max_person: '',
+      base_price: '',
+      facilities: [],
+      is_active: true
+    });
+  };
+
+  const openCreateModal = () => {
+    setEditingItem(null);
+    resetFormData();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (roomType) => {
+    setEditingItem(roomType);
+    setFormData({
+      code: roomType.code,
+      name: roomType.name,
+      description: roomType.description || '',
+      base_capacity: roomType.base_capacity || '',
+      max_person: roomType.max_person || '',
+      base_price: roomType.base_price || '',
+      facilities: roomType.facilities || [],
+      is_active: roomType.is_active
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingItem(null);
+    resetFormData();
+  };
 
   const toggleFacility = (facilityName) => {
     updateFormData({
@@ -58,11 +106,13 @@ const RoomTypesManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError(null);
     try {
       const values = {
-        code: formData.code,
-        name: formData.name,
-        description: formData.description,
+        code: formData.code.trim(),
+        name: formData.name.trim(),
+        description: formData.description.trim(),
         base_capacity: parseInt(formData.base_capacity) || 1,
         max_person: parseInt(formData.max_person) || 2,
         base_price: parseFloat(formData.base_price) || 0,
@@ -71,15 +121,18 @@ const RoomTypesManagement = () => {
       };
 
       if (editingItem) {
-        await update(editingItem.id, values, 'Room type updated successfully');
+        await updateRoomTypeAdmin(editingItem.id, values);
       } else {
-        await create(values, 'Room type created successfully');
+        await createRoomType(values);
       }
 
+      await loadData();
       closeModal();
-      resetFormData();
     } catch (err) {
       console.error('❌ Error saving room type:', err);
+      setError(err.message || 'Failed to save room type');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -88,14 +141,21 @@ const RoomTypesManagement = () => {
   };
 
   const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this room type?')) return;
+    
+    setIsLoading(true);
+    setError(null);
     try {
-      await remove(id, 'Room type deleted successfully');
+      await deleteRoomTypeAdmin(id);
+      await loadData();
     } catch (err) {
       console.error('❌ Error deleting room type:', err);
+      setError(err.message || 'Failed to delete room type');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Table columns configuration
   const columns = [
     {
       key: 'code',
@@ -158,7 +218,7 @@ const RoomTypesManagement = () => {
         error={error}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        onRetry={() => fetchData({}, { column: 'code', ascending: true })}
+        onRetry={loadData}
         emptyMessage="No room types yet. Add your first room type!"
       />
 
@@ -247,7 +307,6 @@ const RoomTypesManagement = () => {
           />
         </div>
 
-        {/* Facility selection for array field */}
         <div>
           <label className="block text-sm font-semibold mb-2 text-primary">
             Facilities / Amenities ({formData.facilities.length} selected)

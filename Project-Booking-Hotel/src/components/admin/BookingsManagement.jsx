@@ -2,19 +2,28 @@ import { useState, useEffect } from "react";
 import {
   FaCheck,
   FaTimes,
-  FaBan,
   FaEdit,
-  FaPhone,
-  FaUser,
+  FaTrash
 } from "react-icons/fa";
-import { supabase } from "../../utils/supabaseClient";
+import {
+  fetchAllRoomBookingsForAdmin,
+  fetchAllRestaurantBookingsForAdmin,
+  fetchAllSpaBookingsForAdmin,
+  updateRoomBookingStatus,
+  updateRestaurantBookingStatus,
+  updateSpaBookingStatus,
+  deleteRoomBooking,
+  deleteRestaurantBooking,
+  deleteSpaBooking
+} from "../../services/adminService";
 
 const BookingsManagement = () => {
-  const [rooms, setRooms] = useState([]); // Needed for room name lookup
   const [bookings, setBookings] = useState([]);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -22,62 +31,49 @@ const BookingsManagement = () => {
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // 1. Fetch Rooms (for lookup purposes)
-      const { data: roomData, error: roomError } = await supabase
-        .from("rooms")
-        .select("id, room_no");
-      if (roomError) throw roomError;
-      setRooms(roomData || []);
-
-      // 2. Fetch all bookings from 3 tables
       const [roomBookings, restBookings, spaBookings] = await Promise.all([
-        supabase.from("bookings").select("*"),
-        supabase.from("restaurant_bookings").select("*"),
-        supabase.from("spa_bookings").select("*"),
+        fetchAllRoomBookingsForAdmin(),
+        fetchAllRestaurantBookingsForAdmin(),
+        fetchAllSpaBookingsForAdmin(),
       ]);
 
-      if (roomBookings.error || restBookings.error || spaBookings.error) {
-        throw roomBookings.error || restBookings.error || spaBookings.error;
-      }
-
-      // Normalize and combine bookings
-      const roomMap = new Map(roomData.map((r) => [r.id, r.room_no]));
-
       const combined = [
-        ...(roomBookings.data || []).map((b) => ({
+        ...roomBookings.map((b) => ({
           ...b,
           type: "room",
-          item_name: roomMap.get(b.room_id) || b.room_name || "Room N/A",
-          totalPrice: parseFloat(b.total_amount),
-          guestName: b.user_name || b.guest_name,
-          guestPhone: b.user_phone || b.guest_phone,
+          item_name: b.rooms?.room_no || "Room N/A",
+          guestName: b.profiles?.full_name || "N/A",
+          guestEmail: b.profiles?.email || "N/A",
+          totalPrice: parseFloat(b.total_amount || 0),
         })),
-        ...(restBookings.data || []).map((b) => ({
+        ...restBookings.map((b) => ({
           ...b,
           type: "restaurant",
           item_name: "Restaurant Table",
+          guestName: b.profiles?.full_name || b.name || "N/A",
+          guestEmail: b.profiles?.email || b.email || "N/A",
+          totalPrice: parseFloat(b.total_price || 0),
           checkIn: b.reservation_at,
-          checkOut: b.reservation_at, // Use reservation_at for both for sorting
-          totalPrice: parseFloat(b.total_price),
-          guestName: b.name,
-          guestPhone: b.phone,
+          checkOut: b.reservation_at,
         })),
-        ...(spaBookings.data || []).map((b) => ({
+        ...spaBookings.map((b) => ({
           ...b,
           type: "spa",
           item_name: b.service_name || "Spa Service",
+          guestName: b.profiles?.full_name || b.name || "N/A",
+          guestEmail: b.profiles?.email || b.email || "N/A",
+          totalPrice: parseFloat(b.total_price || 0),
           checkIn: b.appointment_at,
-          checkOut: b.appointment_at, // Use appointment_at for both for sorting
-          totalPrice: parseFloat(b.total_price),
-          guestName: b.name,
-          guestPhone: b.phone,
+          checkOut: b.appointment_at,
         })),
-      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // Sort by creation date
+      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
       setBookings(combined);
     } catch (err) {
       console.error("❌ Error loading admin bookings:", err);
+      setError("Failed to load bookings");
       setBookings([]);
     } finally {
       setLoading(false);
@@ -85,33 +81,62 @@ const BookingsManagement = () => {
   };
 
   const handleStatusChange = async (booking) => {
-    const tableMap = {
-      room: "bookings",
-      restaurant: "restaurant_bookings",
-      spa: "spa_bookings",
-    };
     const availableStatuses = statusOptions.map((opt) => opt.value);
     const statusListPrompt = availableStatuses.join(", ");
 
     const newStatus = prompt(
-      `Change status for ${booking.confirmation_code} (current: ${booking.status}) to: (${statusListPrompt})`
+      `Change status for ${booking.confirmation_code || booking.id.substring(0, 8)} (current: ${booking.status}) to: (${statusListPrompt})`
     );
 
     if (newStatus && availableStatuses.includes(newStatus)) {
+      setLoading(true);
+      setError(null);
       try {
-        const { error } = await supabase
-          .from(tableMap[booking.type])
-          .update({ status: newStatus })
-          .eq("id", booking.id);
+        const updateFn =
+          booking.type === "room"
+            ? updateRoomBookingStatus
+            : booking.type === "restaurant"
+            ? updateRestaurantBookingStatus
+            : updateSpaBookingStatus;
 
-        if (error) throw error;
+        await updateFn(booking.id, newStatus);
+        setSuccess(`Booking status updated to ${newStatus}`);
         await loadData();
+        setTimeout(() => setSuccess(null), 3000);
         console.log(
-          `✅ Booking ${booking.confirmation_code} status updated to ${newStatus}`
+          `✅ Booking ${booking.confirmation_code || booking.id.substring(0, 8)} status updated to ${newStatus}`
         );
       } catch (err) {
         console.error("❌ Error updating status:", err);
+        setError(err.message || "Failed to update booking status");
+      } finally {
+        setLoading(false);
       }
+    }
+  };
+
+  const handleDelete = async (booking) => {
+    if (!window.confirm(`Are you sure you want to delete booking #${booking.confirmation_code || booking.id.substring(0, 8)}? This action cannot be undone.`)) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const deleteFn =
+        booking.type === "room"
+          ? deleteRoomBooking
+          : booking.type === "restaurant"
+          ? deleteRestaurantBooking
+          : deleteSpaBooking;
+
+      await deleteFn(booking.id);
+      setSuccess(`Booking deleted successfully`);
+      await loadData();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error("❌ Error deleting booking:", err);
+      setError(err.message || "Failed to delete booking");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -160,8 +185,6 @@ const BookingsManagement = () => {
     },
   ];
 
-  // handleStatusChange now uses the logic defined above
-
   const getStatusBadge = (status) => {
     const option = statusOptions.find((opt) => opt.value === status);
     return (
@@ -209,6 +232,20 @@ const BookingsManagement = () => {
           Approve, reject, cancel orders and manage guest information
         </p>
       </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          ❌ {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
+          ✅ {success}
+        </div>
+      )}
+
+      {loading && !error ? <div className="text-center py-8 text-gray-500">Loading...</div> : null}
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto">
@@ -271,20 +308,15 @@ const BookingsManagement = () => {
                         {booking.type}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      {booking.item_name || booking.room_name || "-"}
-                    </td>
-                    <td className="px-6 py-4">
-                      {booking.guestName ||
-                        booking.name ||
-                        booking.user_name ||
-                        "-"}
-                    </td>
+                    <td className="px-6 py-4">{booking.item_name || "-"}</td>
+                    <td className="px-6 py-4">{booking.guestName || "-"}</td>
                     <td className="px-6 py-4 font-semibold">
                       ${booking.totalPrice?.toFixed(2) || "0.00"}
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      {new Date(booking.checkIn).toLocaleDateString() || "-"}
+                      {booking.checkIn
+                        ? new Date(booking.checkIn).toLocaleDateString()
+                        : "-"}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       {new Date(booking.created_at).toLocaleDateString()}
@@ -296,17 +328,27 @@ const BookingsManagement = () => {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleViewDetails(booking)}
-                          className="p-2 text-accent hover:bg-accent/10 rounded transition-colors"
+                          className="p-2 text-accent hover:bg-accent/10 rounded transition-colors disabled:opacity-50"
                           title="View Details"
+                          disabled={loading}
                         >
                           <FaEdit />
                         </button>
                         <button
                           onClick={() => handleStatusChange(booking)}
-                          className="p-2 text-orange-500 hover:bg-orange-50 rounded transition-colors"
+                          className="p-2 text-orange-500 hover:bg-orange-50 rounded transition-colors disabled:opacity-50"
                           title="Change Status"
+                          disabled={loading}
                         >
                           <FaCheck />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(booking)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                          title="Delete"
+                          disabled={loading}
+                        >
+                          <FaTrash />
                         </button>
                       </div>
                     </td>
@@ -321,7 +363,7 @@ const BookingsManagement = () => {
       {isModalOpen && selectedBooking && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
               <h2 className="h3 text-primary">
                 Booking Details #
                 {selectedBooking.confirmation_code ||
@@ -329,7 +371,7 @@ const BookingsManagement = () => {
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="absolute top-6 right-6 text-gray-500 hover:text-red-500"
+                className="text-gray-500 hover:text-red-500"
               >
                 <FaTimes />
               </button>
@@ -350,24 +392,20 @@ const BookingsManagement = () => {
                 {selectedBooking.type === "room" && (
                   <>
                     <DetailItem
-                      label="Room ID"
+                      label="Room"
                       value={selectedBooking.item_name}
                     />
                     <DetailItem
-                      label="Room Name"
-                      value={selectedBooking.room_name}
-                    />
-                    <DetailItem
-                      label="Check-in Date"
+                      label="Check-in"
                       value={selectedBooking.check_in}
                     />
                     <DetailItem
-                      label="Check-out Date"
+                      label="Check-out"
                       value={selectedBooking.check_out}
                     />
                     <DetailItem
                       label="Guests"
-                      value={`${selectedBooking.num_adults} Adult(s), ${selectedBooking.num_children} Kid(s)`}
+                      value={`${selectedBooking.num_adults || 0} Adult(s), ${selectedBooking.num_children || 0} Kid(s)`}
                     />
                     <DetailItem
                       label="Total Nights"
@@ -384,19 +422,19 @@ const BookingsManagement = () => {
                       ).toLocaleString("vi-VN")}
                     />
                     <DetailItem
-                      label="Number of Guests"
-                      value={`${selectedBooking.guests} people`}
+                      label="Guests"
+                      value={`${selectedBooking.guests || 0} people`}
                     />
                   </>
                 )}
                 {selectedBooking.type === "spa" && (
                   <>
                     <DetailItem
-                      label="Service Name"
+                      label="Service"
                       value={selectedBooking.service_name}
                     />
                     <DetailItem
-                      label="Appointment Time"
+                      label="Appointment"
                       value={new Date(
                         selectedBooking.appointment_at
                       ).toLocaleString("vi-VN")}
@@ -410,35 +448,27 @@ const BookingsManagement = () => {
 
                 <DetailItem
                   label="Guest Name"
-                  value={selectedBooking.guestName || selectedBooking.name}
+                  value={selectedBooking.guestName}
                 />
                 <DetailItem
                   label="Email"
-                  value={selectedBooking.email || selectedBooking.user_email}
+                  value={selectedBooking.guestEmail}
                 />
                 <DetailItem
                   label="Phone"
-                  value={selectedBooking.guestPhone || selectedBooking.phone}
+                  value={selectedBooking.phone || "N/A"}
                 />
                 <DetailItem
                   label="Subtotal"
-                  value={`$${
-                    selectedBooking.subtotal?.toFixed(2) ||
-                    selectedBooking.price?.toFixed(2) ||
-                    "0.00"
-                  }`}
+                  value={`$${(selectedBooking.subtotal || 0).toFixed(2)}`}
                 />
                 <DetailItem
                   label="Discount"
-                  value={`$${selectedBooking.discount?.toFixed(2) || "0.00"}`}
+                  value={`$${(selectedBooking.discount || 0).toFixed(2)}`}
                 />
                 <DetailItem
                   label="TOTAL AMOUNT"
-                  value={`$${
-                    selectedBooking.totalPrice?.toFixed(2) ||
-                    selectedBooking.total_price?.toFixed(2) ||
-                    "0.00"
-                  }`}
+                  value={`$${selectedBooking.totalPrice?.toFixed(2) || "0.00"}`}
                   isTotal={true}
                 />
               </div>
@@ -451,11 +481,7 @@ const BookingsManagement = () => {
                   rows="4"
                   readOnly
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 resize-none"
-                  defaultValue={
-                    selectedBooking.note ||
-                    selectedBooking.specialRequests ||
-                    "N/A"
-                  }
+                  defaultValue={selectedBooking.note || "N/A"}
                 />
               </div>
 
@@ -474,4 +500,5 @@ const BookingsManagement = () => {
     </div>
   );
 };
+
 export default BookingsManagement;

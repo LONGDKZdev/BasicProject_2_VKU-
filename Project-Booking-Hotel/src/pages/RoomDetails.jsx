@@ -197,17 +197,17 @@ const RoomDetails = () => {
 
       <div className='bg-room h-[560px] relative flex justify-center items-center bg-cover bg-center'>
         <div className='absolute w-full h-full bg-black/70' />
-        <h1 className='text-5xl lg:text-6xl text-white z-20 font-primary text-center'>{room.name}</h1>
+        <h1 className='text-5xl lg:text-6xl text-white z-20 font-primary text-center'>{room.name} Details</h1>
       </div>
 
       <div className='container mx-auto'>
-        <div className='flex flex-col lg:flex-row lg:gap-x-10 h-full py-24'>
+        <div className='flex flex-col lg:flex-row lg:gap-x-8 h-full py-24'>
           <div className='w-full lg:w-[60%] h-full text-justify'>
             <h2 className='h2'>{room.name}</h2>
             <p className='mb-8 text-primary/80'>{room.description}</p>
-            <img 
-              className='mb-8 rounded shadow-lg' 
-              src={room.imageLg || room.image || PLACEHOLDER_IMG} 
+            <img
+              className='mb-8'
+              src={room.imageLg || room.image || PLACEHOLDER_IMG}
               alt={room.name}
               onError={(e) => {
                 console.warn('❌ Large image failed to load from Supabase:', room.imageLg);
@@ -232,37 +232,25 @@ const RoomDetails = () => {
               </p>
             </div>
 
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12'>
-              {room.facilities.map((item, index) => (
-                <div key={index} className='flex items-center gap-x-3 bg-white border border-accent/20 p-4'>
-                  <div className='text-3xl text-accent'>{<item.icon />}</div>
-                  <div className='text-base font-medium'>{item.name}</div>
-                </div>
-              ))}
-            </div>
 
-            <div className='bg-white border border-accent/20 p-6 rounded mb-12'>
-              <h4 className='font-primary text-2xl mb-4'>Rate highlights</h4>
-              <div className='grid sm:grid-cols-3 gap-4 text-sm'>
-                <div>
-                  <p className='text-primary/60 uppercase tracking-[2px] text-xs'>Weekday</p>
-                  <p className='font-primary text-xl'>${room.price}</p>
-                </div>
-                <div>
-                  <p className='text-primary/60 uppercase tracking-[2px] text-xs'>Weekend</p>
-                  <p className='font-primary text-xl'>${Math.round(room.price * 1.15)}</p>
-                </div>
-                <div>
-                  <p className='text-primary/60 uppercase tracking-[2px] text-xs'>Holiday</p>
-                  <p className='font-primary text-xl'>${Math.round(room.price * 1.35)}</p>
-                </div>
-              </div>
-              <div className='mt-4 p-4 bg-accent/10 rounded flex items-center justify-between text-sm'>
-                <div>
-                  <p className='uppercase tracking-[3px] text-xs text-primary/70'>Hourly escape</p>
-                  <p className='font-primary text-2xl'>${room.pricing?.hourlyRate || Math.round(room.price * 0.25)}</p>
-                </div>
-                <p className='text-primary/60 text-right max-w-xs'>Perfect for day-use or spa add-ons (4-hour block).</p>
+            <div className='mt-12'>
+              <h3 className='h3 mb-3'>Details</h3>
+              <p className='mb-12'>
+                Lorem ipsum dolor sit amet consectetur adipisicing elit. Blanditiis accusantium sapiente quas quos explicabo, odit nostrum? Reiciendis illum dolor eos dicta. Illum vero at hic nostrum sint et quod porro.
+              </p>
+
+              {/* icons grid */}
+              <div className="grid grid-cols-3 gap-6 mb-12">
+                {room.facilities && room.facilities.length > 0 ? (
+                  room.facilities.map((item, index) => (
+                    <div key={index} className='flex items-center gap-x-3 flex-1'>
+                      <div className='text-3xl text-accent'>✓</div>
+                      <div className='text-base'>{typeof item === 'string' ? item : item.name}</div>
+                    </div>
+                  ))
+                ) : (
+                  <p className='text-primary/70 col-span-3'>No facilities information available</p>
+                )}
               </div>
             </div>
 
@@ -341,7 +329,8 @@ const RoomDetails = () => {
           </div>
 
           <div className='w-full lg:w-[40%] h-full'>
-            <div className='py-8 px-6 bg-accent/10 mb-12 shadow-lg border border-accent/20'>
+            <div className='py-8 px-6 bg-accent/20 mb-12'>
+              <h3 className='h3 mb-6'>Your Reservation</h3>
               <div className='flex justify-between items-center mb-6'>
                 <div>
                   <p className='text-sm text-primary/60'>Rate per night</p>
@@ -361,7 +350,7 @@ const RoomDetails = () => {
                       type='date'
                       value={reservation.checkIn}
                       onChange={(e) => handleReservationChange('checkIn', e.target.value)}
-                      className='w-full border border-white/60 px-4 py-3 focus:outline-none focus:border-accent'
+                      className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
                     />
                   </div>
                   <div>
@@ -370,7 +359,7 @@ const RoomDetails = () => {
                       type='date'
                       value={reservation.checkOut}
                       onChange={(e) => handleReservationChange('checkOut', e.target.value)}
-                      className='w-full border border-white/60 px-4 py-3 focus:outline-none focus:border-accent'
+                      className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
                     />
                   </div>
                 </div>
@@ -386,7 +375,7 @@ const RoomDetails = () => {
                         const nextKids = Math.min(reservation.kids, spare);
                         setReservation(prev => ({ ...prev, adults: nextAdults, kids: nextKids }));
                       }}
-                      className='w-full border border-white/60 px-4 py-3 focus:outline-none focus:border-accent bg-white cursor-pointer'
+                      className='w-full border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent bg-white cursor-pointer'
                     >
                       {Array.from({ length: maxGuests }, (_, idx) => idx + 1).map(value => (
                         <option key={value} value={value}>{value} {value === 1 ? 'Adult' : 'Adults'}</option>
@@ -411,7 +400,7 @@ const RoomDetails = () => {
                           });
                         }
                       }}
-                      className='w-full border border-white/60 px-4 py-3 focus:outline-none focus:border-accent bg-white cursor-pointer'
+                      className='w-full border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent bg-white cursor-pointer'
                       disabled={reservation.adults >= maxGuests}
                     >
                       {Array.from({ length: Math.max(0, maxGuests - reservation.adults) + 1 }, (_, idx) => idx).map(value => (
@@ -431,7 +420,7 @@ const RoomDetails = () => {
                     type='text'
                     value={reservation.promoCode}
                     onChange={(e) => handleReservationChange('promoCode', e.target.value)}
-                    className='w-full border border-white/60 px-4 py-3 focus:outline-none focus:border-accent'
+                    className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
                     placeholder='E.g. WELCOME25'
                   />
                 </div>
@@ -441,7 +430,7 @@ const RoomDetails = () => {
                     rows={3}
                     value={reservation.note}
                     onChange={(e) => handleReservationChange('note', e.target.value)}
-                    className='w-full border border-white/60 px-4 py-3 focus:outline-none focus:border-accent resize-none'
+                    className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent resize-none'
                     placeholder='E.g. birthday setup, dietary requirements...'
                   />
                 </div>
@@ -473,8 +462,8 @@ const RoomDetails = () => {
 
             <div>
               <h3 className='h3'>Hotel Rules</h3>
-              <p className='mb-6 text-justify text-primary/80'>
-                Familiarise yourself with the house rules to keep every stay seamless. Our concierge remains available 24/7 for any clarification.
+              <p className='mb-6 text-justify'>
+                Lorem ipsum dolor sit amet consectetur adipisicing elit. Commodi dolores iure fugiat eligendi illo est, aperiam quasi distinctio necessitatibus suscipit nemo provident eaque voluptas earum.
               </p>
 
               <ul className='flex flex-col gap-y-4'>
