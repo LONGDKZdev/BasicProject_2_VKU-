@@ -1,0 +1,42 @@
+// snippet: src\pages\UserDashboard.jsx
+
+import { useMemo, useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useRoomContext } from '../context/RoomContext';
+import { useBookingContext } from '../context/BookingContext'; // NEW
+import { Link } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import Toast from '../components/Toast';
+import { FaSuitcaseRolling, FaCalendarAlt, FaUserCircle, FaCamera, FaEdit, FaTimes } from 'react-icons/fa';
+import { LogoDark } from '../assets';
+
+const tabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'bookings', label: 'Bookings' },
+  { id: 'profile', label: 'Profile & Preferences' },
+];
+
+const bookingFilterOptions = [
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'past', label: 'Past' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
+
+const statusBadgeClasses = {
+  confirmed: 'bg-emerald-100 text-emerald-700',
+  modified: 'bg-sky-100 text-sky-700',
+  completed: 'bg-gray-100 text-gray-600',
+  cancelled: 'bg-red-100 text-red-600',
+};
+
+const UserDashboard = () => {
+  const { user, updateUserProfile } = useAuth();
+  const {
+    getUserBookings: getRoomBookings, // Đổi tên để tránh xung đột
+    cancelBooking,
+    modifyBookingDates,
+  } = useRoomContext();
+  
+  const {
+    getUserRestaurantBookings,

@@ -1,5 +1,5 @@
 -- =====================================
--- 02_INIT_SCHEMA.SQL
+-- 02_INIT_SCHEMA.SQL (UPDATED)
 -- =====================================
 
 create extension if not exists "pgcrypto";
@@ -9,6 +9,7 @@ create type room_status as enum ('available', 'occupied', 'maintenance', 'cleani
 create type booking_status as enum ('pending', 'pending_payment', 'approved', 'rejected', 'confirmed', 'checked_in', 'checked_out', 'modified', 'completed', 'cancelled');
 create type price_rule_type as enum ('weekend', 'holiday', 'seasonal', 'season');
 create type discount_type as enum ('percent', 'fixed');
+create type account_status as enum ('active', 'inactive', 'suspended');
 
 -- ====== FUNCTION UPDATE TIMESTAMP ======
 create or replace function public.trigger_set_timestamp()
@@ -18,19 +19,21 @@ begin
   return new;
 end$$;
 
--- ====== 1. PROFILES ======
+-- ====== 1. PROFILES (UPDATED: Added status field) ======
 create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
+  email text unique not null,
   full_name text,
   phone text,
   avatar_url text,
   country text,
   city text,
+  bio text,
   preferences jsonb not null default '[]'::jsonb,
   language text not null default 'en',
   newsletter boolean not null default true,
-  bio text,
-  role text not null default 'user',
+  role text not null default 'user', -- 'user', 'admin', 'staff'
+  status account_status not null default 'active', -- NEW: account status
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -40,8 +43,8 @@ create trigger set_profiles_updated_at before update on public.profiles for each
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer as $$
 begin
-  insert into public.profiles (id, full_name, role)
-  values (new.id, coalesce(new.raw_user_meta_data->>'full_name',''), 'user');
+  insert into public.profiles (id, email, full_name, role, status)
+  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'full_name',''), 'user', 'active');
   return new;
 end$$;
 create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
@@ -49,7 +52,13 @@ create trigger on_auth_user_created after insert on auth.users for each row exec
 -- Function Check Admin
 create or replace function public.is_admin(uid uuid)
 returns boolean language sql stable as $$
-  select exists(select 1 from public.profiles p where p.id = uid and p.role = 'admin');
+  select exists(select 1 from public.profiles p where p.id = uid and p.role = 'admin' and p.status = 'active');
+$$;
+
+-- Function Check Active User
+create or replace function public.is_active_user(uid uuid)
+returns boolean language sql stable as $$
+  select exists(select 1 from public.profiles p where p.id = uid and p.status = 'active');
 $$;
 
 -- ====== 2. AMENITIES ======

@@ -1,0 +1,42 @@
+// snippet: src\components\admin\BookingsManagement.jsx
+
+import { useState, useEffect } from 'react';
+import { supabase } from '../../db/supabaseClient';
+import Toast from '../Toast';
+import { FaBookmark, FaEdit, FaTimesCircle, FaTimes, FaInfoCircle } from 'react-icons/fa';
+
+const BookingsManagement = () => {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
+
+  // Fetch bookings
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  const fetchBookings = async () => {
+    try {
+      setLoading(true);
+      const { data, error: err } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          confirmation_code,
+          user_id,
+          room_id,
+          status,
+          check_in_date,
+          check_out_date,
+          total_amount,
+          payment_status,
+          created_at,
+          profiles(full_name, email, phone),
+          rooms(room_number, room_types(name))
+        `)

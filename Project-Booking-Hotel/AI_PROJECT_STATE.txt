@@ -1,0 +1,71 @@
+=====================================================
+AI PROJECT STATE (AIDO V5)
+Generated: 2025-12-03T02:08:45.775Z
+=====================================================
+
+PURPOSE: This file is the single source-of-truth to load project state into an AI assistant.
+
+STRICT RULES (MANDATORY):
+- DO NOT create any new files (.md/.txt/etc.) unless explicitly requested by user.
+- DO NOT restructure or rename files.
+- MODIFY only files explicitly requested.
+- Keep responses short and focused on the next task.
+- If you break these rules, STOP and ask the user.
+
+TECH STACK (AUTOMATICALLY EXTRACTED):
+Project: hotelbooking v0.0.0
+- React ^18.2.0, Supabase JS ^2.84.0
+
+ENVIRONMENT / SUPABASE KEYS (partial, redacted):
+- VITE_SUPABASE_URL=https://sxteddkozzqniebfstag.supabase.co
+- VITE_SUPABASE_ANON_KEY=<REDACTED>
+- VITE_EMAILJS_SERVICE_ID=your-service-id
+- VITE_EMAILJS_TEMPLATE_ID=your-template-id
+- VITE_EMAILJS_PUBLIC_KEY=<REDACTED>
+
+DATABASE (Query_V2) SUMMARY:
+- SQL Files: 4
+- Tables detected across SQL: 18
+- Functions detected: 6
+- Policies detected: 27
+- Enums detected: 5
+
+AUTO PROJECT METRICS:
+{
+  "totalFiles": 123,
+  "jsFiles": 109,
+  "sqlFiles": 4
+}
+
+TOP SNIPPETS INCLUDED (for compact AI payload):
+- src\pages\RestaurantPage.jsx => .aido_out\snippets\src_pages_RestaurantPage.jsx.snippet.txt
+- Query_V2\02_Int_schema.sql => .aido_out\snippets\Query_V2_02_Int_schema.sql.snippet.txt
+- src\context\RoomContext.jsx => .aido_out\snippets\src_context_RoomContext.jsx.snippet.txt
+- src\components\chatBox\ChatBox.jsx => .aido_out\snippets\src_components_chatBox_ChatBox.jsx.snippet.txt
+- Query_V2\04_Full_seed_data.sql => .aido_out\snippets\Query_V2_04_Full_seed_data.sql.snippet.txt
+- src\pages\SpaPage.jsx => .aido_out\snippets\src_pages_SpaPage.jsx.snippet.txt
+- Query_V2\03_Setup_RLS.sql => .aido_out\snippets\Query_V2_03_Setup_RLS.sql.snippet.txt
+- src\components\admin\BookingsManagement_REFACTORED.js => .aido_out\snippets\src_components_admin_BookingsManagement_REFACTORED.js.snippet.txt
+- Query_V2\01_Clean_Data.sql => .aido_out\snippets\Query_V2_01_Clean_Data.sql.snippet.txt
+- src\services\adminService_REFACTORED.js => .aido_out\snippets\src_services_adminService_REFACTORED.js.snippet.txt
+- src\pages\UserDashboard.jsx => .aido_out\snippets\src_pages_UserDashboard.jsx.snippet.txt
+- src\components\admin\BookingsManagement.jsx => .aido_out\snippets\src_components_admin_BookingsManagement.jsx.snippet.txt
+
+NEXT DEVELOPMENT TASKS (initial recommendations):
+1) Improve Booking Calendar UI interaction.
+2) Implement Reservation Cancellation API.
+3) Enhance Admin Dashboard filtering & sorting.
+4) Add validation to Profile Settings form.
+5) Optimize Monthly Statistics SQL queries.
+
+USAGE (open a NEW AI tab and send these items):
+- .aido_out/manifest.json
+- .aido_out/snippets/*.snippet.txt (top N)
+- AI_PROJECT_STATE.txt
+
+INSTRUCTION (for AI):
+1) Load AI_PROJECT_STATE.txt and respond exactly: "I have loaded the project state. Ready to continue development." (no extra text)
+2) Analyze manifest.json and update 'Global Completion' values (replace 'auto').
+3) Propose 1 prioritized small task and implement it as a minimal patch. Output only: commit message + unified diff.
+
+END OF STATE FILE.

@@ -1,284 +1,401 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { FaEnvelope, FaLock, FaUser, FaSpinner, FaGoogle, FaFacebook } from 'react-icons/fa';
+import { FaEnvelope, FaLock, FaUser, FaPhone, FaSpinner, FaGoogle, FaFacebook, FaEye, FaEyeSlash } from 'react-icons/fa';
 import Toast from '../components/Toast';
-
-const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
+import { STATIC_ASSETS } from '../utils/assetUrls';
 
 const Register = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phone: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
   });
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [toast, setToast] = useState(null);
-  
-  const { register, loginWithOAuth, loading, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
+  const { signUp, isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated()) {
       navigate('/', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    setError('');
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Name validation
+    if (!formData.name.trim()) {
+      newErrors.name = 'Full name is required';
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = 'Name must be at least 2 characters';
+    }
+
+    // Email validation
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email';
+    }
+
+    // Phone validation (optional but if provided, must be valid)
+    if (formData.phone && !/^[0-9\-+\s()]+$/.test(formData.phone)) {
+      newErrors.phone = 'Please enter a valid phone number';
+    }
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+      newErrors.password = 'Password must contain uppercase, lowercase, and numbers';
+    }
+
+    // Confirm password validation
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    // Terms agreement
+    if (!agreedToTerms) {
+      newErrors.terms = 'You must agree to the terms and conditions';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: '',
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setIsLoading(true);
 
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-      setError('Please fill in all fields');
+    if (!validateForm()) {
+      setIsLoading(false);
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    const result = await register(formData.name, formData.email, formData.password);
-    
-    if (result.success) {
-      setToast({
-        message: `Account created successfully! Welcome, ${result.user.name}!`,
-        type: 'success'
+    try {
+      const result = await signUp(formData.email, formData.password, {
+        name: formData.name,
+        phone: formData.phone,
+        newsletter: true,
       });
+
+      if (!result.success) {
+        const errorMsg = result.error || 'Registration failed. Please try again.';
+        setErrors({ submit: errorMsg });
+        setToast({
+          message: errorMsg,
+          type: 'error',
+          duration: 3000,
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      setToast({
+        message: 'Registration successful! Redirecting to login...',
+        type: 'success',
+        duration: 2000,
+      });
+
       setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 1500);
-    } else {
-      setError(result.error || 'Registration failed');
+        navigate('/login', { replace: true });
+      }, 2000);
+    } catch (err) {
+      console.error('Registration error:', err);
+      const errorMsg = err.message || 'An unexpected error occurred';
+      setErrors({ submit: errorMsg });
+      setToast({
+        message: errorMsg,
+        type: 'error',
+        duration: 3000,
+      });
+      setIsLoading(false);
     }
   };
 
-  const handleOAuthLogin = async (provider) => {
-    setError('');
-    const result = await loginWithOAuth(provider);
-    
-    if (result.success) {
+  const handleOAuthRegister = async (provider) => {
+    try {
+      setIsLoading(true);
+      console.log(`OAuth registration with ${provider} - Coming soon`);
       setToast({
-        message: `Welcome, ${result.user.name || result.user.email}!`,
-        type: 'success'
+        message: `${provider} registration coming soon!`,
+        type: 'info',
+        duration: 2000,
       });
-      setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 1500);
-    } else {
-      setError(`Failed to login with ${provider}`);
+    } catch (err) {
+      console.error('OAuth error:', err);
+      setToast({
+        message: `${provider} registration failed`,
+        type: 'error',
+        duration: 2000,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const isFormValid = 
+    formData.name && 
+    formData.email && 
+    formData.password && 
+    formData.confirmPassword && 
+    agreedToTerms;
+  const isSubmitDisabled = !isFormValid || isLoading || loading;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-accent/20 flex items-center justify-center p-4 py-12">
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
+      <Toast message={toast?.message} type={toast?.type} duration={toast?.duration} />
 
-      <div className="relative z-10 w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          <div className="bg-gradient-to-r from-accent to-accent-hover p-8 text-center">
-            <div className="flex justify-center mb-4">
-              <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[180px] brightness-0 invert" />
+      <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-8">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <img
+            src={STATIC_ASSETS.logoDark}
+            alt="Logo"
+            className="w-32 mx-auto mb-4"
+            onError={(e) => {
+              e.target.style.display = 'none';
+            }}
+          />
+          <h1 className="text-3xl font-bold text-gray-800">Create Account</h1>
+          <p className="text-gray-500 mt-2">Join us for amazing experiences</p>
+        </div>
+
+        {/* Submit Error Message */}
+        {errors.submit && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm font-medium">{errors.submit}</p>
+          </div>
+        )}
+
+        {/* Register Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Full Name Input */}
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">Full Name</label>
+            <div className="relative">
+              <FaUser className="absolute left-4 top-4 text-gray-400" />
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="John Doe"
+                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition ${
+                  errors.name ? 'border-red-500' : 'border-gray-300'
+                }`}
+                disabled={isLoading || loading}
+              />
             </div>
-            <h1 className="text-2xl font-primary text-white mb-2">Create Account</h1>
-            <p className="text-white/90 text-sm">Join us and start booking</p>
+            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
           </div>
 
-          <form onSubmit={handleSubmit} className="p-8 space-y-5">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
+          {/* Email Input */}
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">Email Address</label>
+            <div className="relative">
+              <FaEnvelope className="absolute left-4 top-4 text-gray-400" />
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                placeholder="you@example.com"
+                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition ${
+                  errors.email ? 'border-red-500' : 'border-gray-300'
+                }`}
+                disabled={isLoading || loading}
+              />
+            </div>
+            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+          </div>
+
+          {/* Phone Input (Optional) */}
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">Phone Number (Optional)</label>
+            <div className="relative">
+              <FaPhone className="absolute left-4 top-4 text-gray-400" />
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                placeholder="+1 (555) 123-4567"
+                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition ${
+                  errors.phone ? 'border-red-500' : 'border-gray-300'
+                }`}
+                disabled={isLoading || loading}
+              />
+            </div>
+            {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
+          </div>
+
+          {/* Password Input */}
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">Password</label>
+            <div className="relative">
+              <FaLock className="absolute left-4 top-4 text-gray-400" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                placeholder="••••••••"
+                className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition ${
+                  errors.password ? 'border-red-500' : 'border-gray-300'
+                }`}
+                disabled={isLoading || loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+                disabled={isLoading || loading}
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
+            {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+            <p className="text-gray-500 text-xs mt-1">Min 6 characters, must contain uppercase, lowercase, and numbers</p>
+          </div>
+
+          {/* Confirm Password Input */}
+          <div>
+            <label className="block text-gray-700 font-semibold mb-2">Confirm Password</label>
+            <div className="relative">
+              <FaLock className="absolute left-4 top-4 text-gray-400" />
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleInputChange}
+                placeholder="••••••••"
+                className={`w-full pl-10 pr-12 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition ${
+                  errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                }`}
+                disabled={isLoading || loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+                disabled={isLoading || loading}
+              >
+                {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
+            {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
+          </div>
+
+          {/* Terms Agreement */}
+          <div className="flex items-start gap-3 mt-5">
+            <input
+              type="checkbox"
+              id="terms"
+              checked={agreedToTerms}
+              onChange={(e) => {
+                setAgreedToTerms(e.target.checked);
+                if (errors.terms) {
+                  setErrors((prev) => ({ ...prev, terms: '' }));
+                }
+              }}
+              className="w-5 h-5 mt-1 accent-amber-500 rounded cursor-pointer"
+              disabled={isLoading || loading}
+            />
+            <label htmlFor="terms" className="text-sm text-gray-600 cursor-pointer">
+              I agree to the <a href="#" className="text-amber-600 hover:underline">Terms & Conditions</a> and{' '}
+              <a href="#" className="text-amber-600 hover:underline">Privacy Policy</a>
+            </label>
+          </div>
+          {errors.terms && <p className="text-red-500 text-sm">{errors.terms}</p>}
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={isSubmitDisabled}
+            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2 mt-6"
+          >
+            {isLoading || loading ? (
+              <>
+                <FaSpinner className="animate-spin" />
+                Creating Account...
+              </>
+            ) : (
+              'Create Account'
             )}
+          </button>
+        </form>
 
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-primary">
-                Full Name
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FaUser className="text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                  placeholder="John Doe"
-                  required
-                  disabled={loading}
-                />
-              </div>
-            </div>
+        {/* OAuth Divider */}
+        <div className="mt-6 flex items-center gap-4">
+          <div className="flex-1 h-px bg-gray-300"></div>
+          <span className="text-gray-500 text-sm">Or register with</span>
+          <div className="flex-1 h-px bg-gray-300"></div>
+        </div>
 
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-primary">
-                Email
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FaEnvelope className="text-gray-400" />
-                </div>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                  placeholder="john@example.com"
-                  required
-                  disabled={loading}
-                />
-              </div>
-            </div>
+        {/* OAuth Buttons */}
+        <div className="mt-6 grid grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => handleOAuthRegister('Google')}
+            disabled={isLoading || loading}
+            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 transition"
+          >
+            <FaGoogle className="text-red-500" />
+            <span className="text-sm font-medium">Google</span>
+          </button>
 
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-primary">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FaLock className="text-gray-400" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                  placeholder="••••••••"
-                  required
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-accent transition-colors text-sm"
-                >
-                  {showPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
+          <button
+            type="button"
+            onClick={() => handleOAuthRegister('Facebook')}
+            disabled={isLoading || loading}
+            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 transition"
+          >
+            <FaFacebook className="text-blue-600" />
+            <span className="text-sm font-medium">Facebook</span>
+          </button>
+        </div>
 
-            <div>
-              <label className="block text-sm font-semibold mb-2 text-primary">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <FaLock className="text-gray-400" />
-                </div>
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                  placeholder="••••••••"
-                  required
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-accent transition-colors text-sm"
-                >
-                  {showConfirmPassword ? 'Hide' : 'Show'}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full btn btn-primary btn-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <FaSpinner className="animate-spin" />
-                  Creating Account...
-                </>
-              ) : (
-                'Create Account'
-              )}
-            </button>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => handleOAuthLogin('google')}
-                disabled={loading}
-                className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FaGoogle className="text-red-500" />
-                <span className="text-sm font-semibold">Google</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleOAuthLogin('facebook')}
-                disabled={loading}
-                className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FaFacebook className="text-blue-600" />
-                <span className="text-sm font-semibold">Facebook</span>
-              </button>
-            </div>
-
-            <div className="text-center pt-4">
-              <p className="text-sm text-gray-600">
-                Already have an account?{' '}
-                <Link to="/login" className="text-accent hover:text-accent-hover font-semibold">
-                  Sign In
-                </Link>
-              </p>
-            </div>
-          </form>
-
-          <div className="px-8 py-4 bg-gray-50 border-t border-gray-200 text-center">
-            <p className="text-xs text-gray-500">
-              © {new Date().getFullYear()} Hotel Booking. All rights reserved.
-            </p>
-          </div>
+        {/* Sign In Link */}
+        <div className="mt-6 text-center">
+          <p className="text-gray-600">
+            Already have an account?{' '}
+            <Link to="/login" className="text-amber-600 hover:text-amber-700 font-semibold transition">
+              Sign In
+            </Link>
+          </p>
         </div>
       </div>
-
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   );
 };

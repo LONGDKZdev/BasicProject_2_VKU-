@@ -1,498 +1,383 @@
-import { useState, useEffect } from "react";
-import {
-  FaCheck,
-  FaTimes,
-  FaEdit,
-  FaTrash
-} from "react-icons/fa";
-import {
-  fetchAllRoomBookingsForAdmin,
-  fetchAllRestaurantBookingsForAdmin,
-  fetchAllSpaBookingsForAdmin,
-  updateRoomBookingStatus,
-  updateRestaurantBookingStatus,
-  updateSpaBookingStatus,
-  deleteRoomBooking,
-  deleteRestaurantBooking,
-  deleteSpaBooking
-} from "../../services/adminService";
+import { useState, useEffect } from 'react';
+import { supabase } from '../../db/supabaseClient';
+import Toast from '../Toast';
+import { FaBookmark, FaEdit, FaTimesCircle, FaTimes, FaInfoCircle } from 'react-icons/fa';
 
 const BookingsManagement = () => {
   const [bookings, setBookings] = useState([]);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [newStatus, setNewStatus] = useState('');
 
+  // Fetch bookings
   useEffect(() => {
-    loadData();
+    fetchBookings();
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchBookings = async () => {
     try {
-      const [roomBookings, restBookings, spaBookings] = await Promise.all([
-        fetchAllRoomBookingsForAdmin(),
-        fetchAllRestaurantBookingsForAdmin(),
-        fetchAllSpaBookingsForAdmin(),
-      ]);
-
-      const combined = [
-        ...roomBookings.map((b) => ({
-          ...b,
-          type: "room",
-          item_name: b.rooms?.room_no || "Room N/A",
-          guestName: b.profiles?.full_name || "N/A",
-          guestEmail: b.profiles?.email || "N/A",
-          totalPrice: parseFloat(b.total_amount || 0),
-        })),
-        ...restBookings.map((b) => ({
-          ...b,
-          type: "restaurant",
-          item_name: "Restaurant Table",
-          guestName: b.profiles?.full_name || b.name || "N/A",
-          guestEmail: b.profiles?.email || b.email || "N/A",
-          totalPrice: parseFloat(b.total_price || 0),
-          checkIn: b.reservation_at,
-          checkOut: b.reservation_at,
-        })),
-        ...spaBookings.map((b) => ({
-          ...b,
-          type: "spa",
-          item_name: b.service_name || "Spa Service",
-          guestName: b.profiles?.full_name || b.name || "N/A",
-          guestEmail: b.profiles?.email || b.email || "N/A",
-          totalPrice: parseFloat(b.total_price || 0),
-          checkIn: b.appointment_at,
-          checkOut: b.appointment_at,
-        })),
-      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-      setBookings(combined);
-    } catch (err) {
-      console.error("❌ Error loading admin bookings:", err);
-      setError("Failed to load bookings");
-      setBookings([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStatusChange = async (booking) => {
-    const availableStatuses = statusOptions.map((opt) => opt.value);
-    const statusListPrompt = availableStatuses.join(", ");
-
-    const newStatus = prompt(
-      `Change status for ${booking.confirmation_code || booking.id.substring(0, 8)} (current: ${booking.status}) to: (${statusListPrompt})`
-    );
-
-    if (newStatus && availableStatuses.includes(newStatus)) {
       setLoading(true);
+      const { data, error: err } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          confirmation_code,
+          user_id,
+          room_id,
+          status,
+          check_in_date,
+          check_out_date,
+          total_amount,
+          payment_status,
+          created_at,
+          profiles(full_name, email, phone),
+          rooms(room_number, room_types(name))
+        `)
+        .order('created_at', { ascending: false });
+
+      if (err) throw err;
+      setBookings(data || []);
       setError(null);
-      try {
-        const updateFn =
-          booking.type === "room"
-            ? updateRoomBookingStatus
-            : booking.type === "restaurant"
-            ? updateRestaurantBookingStatus
-            : updateSpaBookingStatus;
-
-        await updateFn(booking.id, newStatus);
-        setSuccess(`Booking status updated to ${newStatus}`);
-        await loadData();
-        setTimeout(() => setSuccess(null), 3000);
-        console.log(
-          `✅ Booking ${booking.confirmation_code || booking.id.substring(0, 8)} status updated to ${newStatus}`
-        );
-      } catch (err) {
-        console.error("❌ Error updating status:", err);
-        setError(err.message || "Failed to update booking status");
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  const handleDelete = async (booking) => {
-    if (!window.confirm(`Are you sure you want to delete booking #${booking.confirmation_code || booking.id.substring(0, 8)}? This action cannot be undone.`)) return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const deleteFn =
-        booking.type === "room"
-          ? deleteRoomBooking
-          : booking.type === "restaurant"
-          ? deleteRestaurantBooking
-          : deleteSpaBooking;
-
-      await deleteFn(booking.id);
-      setSuccess(`Booking deleted successfully`);
-      await loadData();
-      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      console.error("❌ Error deleting booking:", err);
-      setError(err.message || "Failed to delete booking");
+      console.error('Error fetching bookings:', err);
+      setError(err.message);
+      setToast({ type: 'error', message: 'Lỗi tải danh sách đặt phòng' });
     } finally {
       setLoading(false);
     }
   };
 
-  const statusOptions = [
-    {
-      value: "pending",
-      label: "Pending Approval",
-      color: "bg-yellow-100 text-yellow-800",
-    },
-    {
-      value: "pending_payment",
-      label: "Pending Payment",
-      color: "bg-yellow-200 text-yellow-800",
-    },
-    {
-      value: "approved",
-      label: "Approved",
-      color: "bg-green-100 text-green-800",
-    },
-    {
-      value: "confirmed",
-      label: "Confirmed",
-      color: "bg-blue-100 text-blue-800",
-    },
-    {
-      value: "checked_in",
-      label: "Checked In",
-      color: "bg-cyan-100 text-cyan-800",
-    },
-    {
-      value: "checked_out",
-      label: "Checked Out",
-      color: "bg-gray-300 text-gray-800",
-    },
-    { value: "completed", label: "Completed", color: "bg-gray-500 text-white" },
-    {
-      value: "modified",
-      label: "Modified",
-      color: "bg-purple-100 text-purple-800",
-    },
-    { value: "rejected", label: "Rejected", color: "bg-red-100 text-red-800" },
-    {
-      value: "cancelled",
-      label: "Cancelled",
-      color: "bg-red-200 text-red-800",
-    },
-  ];
+  // Filter bookings
+  const filteredBookings = bookings.filter(booking => {
+    const matchesSearch = 
+      booking.confirmation_code?.includes(searchTerm.toUpperCase()) ||
+      booking.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      booking.profiles?.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || booking.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Change booking status
+  const handleChangeStatus = (booking) => {
+    setSelectedBooking(booking);
+    setNewStatus(booking.status);
+    setShowModal(true);
+  };
+
+  // Submit status change
+  const handleSubmitStatusChange = async () => {
+    if (!selectedBooking || !newStatus) return;
+
+    try {
+      const { error: err } = await supabase
+        .from('bookings')
+        .update({ status: newStatus })
+        .eq('id', selectedBooking.id);
+
+      if (err) throw err;
+
+      setBookings(bookings.map(b => 
+        b.id === selectedBooking.id ? { ...b, status: newStatus } : b
+      ));
+      setToast({ type: 'success', message: 'Cập nhật trạng thái thành công' });
+      setShowModal(false);
+      setSelectedBooking(null);
+    } catch (err) {
+      console.error('Error updating booking status:', err);
+      setToast({ type: 'error', message: 'Lỗi cập nhật trạng thái' });
+    }
+  };
+
+  // Cancel booking
+  const handleCancelBooking = async (booking) => {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy đặt phòng này?')) return;
+
+    try {
+      const { error: err } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', booking.id);
+
+      if (err) throw err;
+
+      setBookings(bookings.map(b => 
+        b.id === booking.id ? { ...b, status: 'cancelled' } : b
+      ));
+      setToast({ type: 'success', message: 'Đặt phòng đã bị hủy' });
+    } catch (err) {
+      console.error('Error cancelling booking:', err);
+      setToast({ type: 'error', message: 'Lỗi hủy đặt phòng' });
+    }
+  };
+
+  // Refund booking (set payment_status to refunded)
+  const handleRefund = async (booking) => {
+    if (!window.confirm('Bạn có chắc chắn muốn hoàn tiền cho khách hàng này?')) return;
+
+    try {
+      const { error: err } = await supabase
+        .from('bookings')
+        .update({ 
+          status: 'cancelled',
+          payment_status: 'refunded' 
+        })
+        .eq('id', booking.id);
+
+      if (err) throw err;
+
+      setBookings(bookings.map(b => 
+        b.id === booking.id ? { ...b, status: 'cancelled', payment_status: 'refunded' } : b
+      ));
+      setToast({ type: 'success', message: 'Hoàn tiền thành công' });
+    } catch (err) {
+      console.error('Error refunding booking:', err);
+      setToast({ type: 'error', message: 'Lỗi hoàn tiền' });
+    }
+  };
 
   const getStatusBadge = (status) => {
-    const option = statusOptions.find((opt) => opt.value === status);
+    const classes = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      confirmed: 'bg-blue-100 text-blue-800',
+      checked_in: 'bg-green-100 text-green-800',
+      checked_out: 'bg-gray-100 text-gray-800',
+      cancelled: 'bg-red-100 text-red-800',
+    };
+    return classes[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getPaymentBadge = (status) => {
+    const classes = {
+      pending: 'bg-orange-100 text-orange-800',
+      paid: 'bg-green-100 text-green-800',
+      refunded: 'bg-blue-100 text-blue-800',
+    };
+    return classes[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('vi-VN');
+  };
+
+  if (loading) {
     return (
-      <span
-        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-          option?.color || "bg-gray-100 text-gray-800"
-        }`}
-      >
-        {option?.label || status}
-      </span>
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
+      </div>
     );
-  };
-
-  const handleViewDetails = (booking) => {
-    setSelectedBooking(booking);
-    setIsModalOpen(true);
-  };
-
-  const DetailItem = ({ label, value, isTotal = false, isHtml = false }) => (
-    <div
-      className={`py-1 ${isTotal ? "border-t-2 border-accent mt-4 pt-4" : ""}`}
-    >
-      <label className="block text-xs font-semibold mb-1 text-primary/70 uppercase">
-        {label}
-      </label>
-      {isHtml ? (
-        <div>{value}</div>
-      ) : (
-        <span
-          className={`font-semibold ${
-            isTotal ? "text-lg text-accent" : "text-primary"
-          }`}
-        >
-          {value || "N/A"}
-        </span>
-      )}
-    </div>
-  );
+  }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="h2 text-primary mb-2">Bookings Management</h1>
-        <p className="text-gray-600">
-          Approve, reject, cancel orders and manage guest information
-        </p>
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+
+      {/* Header */}
+      <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-6">
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <FaBookmark /> Quản lý Đặt phòng
+        </h2>
+        <p className="text-amber-100 mt-1">Quản lý và xử lý đơn đặt phòng</p>
       </div>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          ❌ {error}
+      {/* Filters */}
+      <div className="p-6 border-b border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Tìm kiếm</label>
+          <input
+            type="text"
+            placeholder="Mã, tên khách, email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+          />
         </div>
-      )}
-
-      {success && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-          ✅ {success}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <option value="all">Tất cả</option>
+            <option value="pending">Chờ xác nhận</option>
+            <option value="confirmed">Đã xác nhận</option>
+            <option value="checked_in">Đã nhận phòng</option>
+            <option value="checked_out">Đã trả phòng</option>
+            <option value="cancelled">Đã hủy</option>
+          </select>
         </div>
-      )}
+        <div className="flex items-end">
+          <p className="text-sm text-gray-600">
+            <strong>{filteredBookings.length}</strong> đặt phòng
+          </p>
+        </div>
+      </div>
 
-      {loading && !error ? <div className="text-center py-8 text-gray-500">Loading...</div> : null}
-
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-accent text-white">
-              <tr>
-                <th className="px-6 py-4 text-left font-tertiary tracking-wider">
-                  ID / Type
-                </th>
-                <th className="px-6 py-4 text-left font-tertiary tracking-wider">
-                  Item/Service
-                </th>
-                <th className="px-6 py-4 text-left font-tertiary tracking-wider">
-                  Guest
-                </th>
-                <th className="px-6 py-4 text-left font-tertiary tracking-wider">
-                  Total
-                </th>
-                <th className="px-6 py-4 text-left font-tertiary tracking-wider">
-                  Date/Time
-                </th>
-                <th className="px-6 py-4 text-left font-tertiary tracking-wider">
-                  Created At
-                </th>
-                <th className="px-6 py-4 text-left font-tertiary tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-center font-tertiary tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {bookings.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="px-6 py-12 text-center text-gray-500"
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Mã
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Khách
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Phòng
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Ngày
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Tiền
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Trạng thái
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Thanh toán
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                Hành động
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {filteredBookings.map((booking) => (
+              <tr key={booking.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 whitespace-nowrap font-mono text-xs font-semibold text-amber-600">
+                  {booking.confirmation_code}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div>
+                    <p className="font-medium text-gray-900">{booking.profiles?.full_name}</p>
+                    <p className="text-xs text-gray-500">{booking.profiles?.email}</p>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-gray-900">
+                  {booking.rooms?.room_number} ({booking.rooms?.room_types?.name})
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-xs">
+                  <div>
+                    <p>{formatDate(booking.check_in_date)}</p>
+                    <p className="text-gray-500">{formatDate(booking.check_out_date)}</p>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap font-semibold text-amber-600">
+                  ${booking.total_amount?.toFixed(2) || '0.00'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusBadge(booking.status)}`}>
+                    {booking.status === 'pending' ? 'Chờ xác nhận'
+                     : booking.status === 'confirmed' ? 'Đã xác nhận'
+                     : booking.status === 'checked_in' ? 'Đã nhận phòng'
+                     : booking.status === 'checked_out' ? 'Đã trả phòng'
+                     : booking.status === 'cancelled' ? 'Đã hủy'
+                     : booking.status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getPaymentBadge(booking.payment_status)}`}>
+                    {booking.payment_status === 'pending' ? 'Chưa thanh toán'
+                     : booking.payment_status === 'paid' ? 'Đã thanh toán'
+                     : booking.payment_status === 'refunded' ? 'Đã hoàn tiền'
+                     : booking.payment_status}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm space-x-1">
+                  <button
+                    onClick={() => handleChangeStatus(booking)}
+                    className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-xs"
+                    title="Thay đổi trạng thái"
                   >
-                    No bookings yet.
-                  </td>
-                </tr>
-              ) : (
-                bookings.map((booking) => (
-                  <tr key={booking.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <span className="font-semibold">
-                        {booking.confirmation_code ||
-                          booking.id.substring(0, 8)}
-                      </span>
-                      <span
-                        className={`ml-2 px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${
-                          booking.type === "room"
-                            ? "bg-blue-100 text-blue-800"
-                            : booking.type === "restaurant"
-                            ? "bg-orange-100 text-orange-800"
-                            : "bg-pink-100 text-pink-800"
-                        }`}
-                      >
-                        {booking.type}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">{booking.item_name || "-"}</td>
-                    <td className="px-6 py-4">{booking.guestName || "-"}</td>
-                    <td className="px-6 py-4 font-semibold">
-                      ${booking.totalPrice?.toFixed(2) || "0.00"}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      {booking.checkIn
-                        ? new Date(booking.checkIn).toLocaleDateString()
-                        : "-"}
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      {new Date(booking.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(booking.status)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handleViewDetails(booking)}
-                          className="p-2 text-accent hover:bg-accent/10 rounded transition-colors disabled:opacity-50"
-                          title="View Details"
-                          disabled={loading}
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          onClick={() => handleStatusChange(booking)}
-                          className="p-2 text-orange-500 hover:bg-orange-50 rounded transition-colors disabled:opacity-50"
-                          title="Change Status"
-                          disabled={loading}
-                        >
-                          <FaCheck />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(booking)}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                          title="Delete"
-                          disabled={loading}
-                        >
-                          <FaTrash />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <FaEdit className="inline" />
+                  </button>
+                  {booking.payment_status !== 'refunded' && (
+                    <button
+                      onClick={() => handleRefund(booking)}
+                      className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-xs"
+                      title="Hoàn tiền"
+                    >
+                      💰
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleCancelBooking(booking)}
+                    className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-xs"
+                    title="Hủy"
+                  >
+                    <FaTimesCircle className="inline" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {isModalOpen && selectedBooking && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="h3 text-primary">
-                Booking Details #
-                {selectedBooking.confirmation_code ||
-                  selectedBooking.id.substring(0, 8)}
-              </h2>
+      {filteredBookings.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <FaBookmark className="text-4xl mx-auto mb-2 opacity-30" />
+          <p>Không tìm thấy đặt phòng nào</p>
+        </div>
+      )}
+
+      {/* Modal - Change Status */}
+      {showModal && selectedBooking && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">Thay đổi trạng thái</h3>
               <button
-                onClick={() => setIsModalOpen(false)}
-                className="text-gray-500 hover:text-red-500"
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
                 <FaTimes />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <DetailItem
-                  label="Type"
-                  value={selectedBooking.type?.toUpperCase()}
-                />
-                <DetailItem
-                  label="Status"
-                  value={getStatusBadge(selectedBooking.status)}
-                  isHtml={true}
-                />
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4 flex items-center gap-2">
+                <FaInfoCircle />
+                {selectedBooking.confirmation_code} - {selectedBooking.profiles?.full_name}
+              </p>
 
-                {selectedBooking.type === "room" && (
-                  <>
-                    <DetailItem
-                      label="Room"
-                      value={selectedBooking.item_name}
-                    />
-                    <DetailItem
-                      label="Check-in"
-                      value={selectedBooking.check_in}
-                    />
-                    <DetailItem
-                      label="Check-out"
-                      value={selectedBooking.check_out}
-                    />
-                    <DetailItem
-                      label="Guests"
-                      value={`${selectedBooking.num_adults || 0} Adult(s), ${selectedBooking.num_children || 0} Kid(s)`}
-                    />
-                    <DetailItem
-                      label="Total Nights"
-                      value={selectedBooking.total_nights}
-                    />
-                  </>
-                )}
-                {selectedBooking.type === "restaurant" && (
-                  <>
-                    <DetailItem
-                      label="Reservation Time"
-                      value={new Date(
-                        selectedBooking.reservation_at
-                      ).toLocaleString("vi-VN")}
-                    />
-                    <DetailItem
-                      label="Guests"
-                      value={`${selectedBooking.guests || 0} people`}
-                    />
-                  </>
-                )}
-                {selectedBooking.type === "spa" && (
-                  <>
-                    <DetailItem
-                      label="Service"
-                      value={selectedBooking.service_name}
-                    />
-                    <DetailItem
-                      label="Appointment"
-                      value={new Date(
-                        selectedBooking.appointment_at
-                      ).toLocaleString("vi-VN")}
-                    />
-                    <DetailItem
-                      label="Therapist"
-                      value={selectedBooking.therapist || "No preference"}
-                    />
-                  </>
-                )}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Trạng thái mới
+              </label>
+              <select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="pending">Chờ xác nhận</option>
+                <option value="confirmed">Đã xác nhận</option>
+                <option value="checked_in">Đã nhận phòng</option>
+                <option value="checked_out">Đã trả phòng</option>
+                <option value="cancelled">Đã hủy</option>
+              </select>
+            </div>
 
-                <DetailItem
-                  label="Guest Name"
-                  value={selectedBooking.guestName}
-                />
-                <DetailItem
-                  label="Email"
-                  value={selectedBooking.guestEmail}
-                />
-                <DetailItem
-                  label="Phone"
-                  value={selectedBooking.phone || "N/A"}
-                />
-                <DetailItem
-                  label="Subtotal"
-                  value={`$${(selectedBooking.subtotal || 0).toFixed(2)}`}
-                />
-                <DetailItem
-                  label="Discount"
-                  value={`$${(selectedBooking.discount || 0).toFixed(2)}`}
-                />
-                <DetailItem
-                  label="TOTAL AMOUNT"
-                  value={`$${selectedBooking.totalPrice?.toFixed(2) || "0.00"}`}
-                  isTotal={true}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-primary">
-                  Notes / Special Requests
-                </label>
-                <textarea
-                  rows="4"
-                  readOnly
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 resize-none"
-                  defaultValue={selectedBooking.note || "N/A"}
-                />
-              </div>
-
-              <div className="flex gap-4 pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="btn btn-primary btn-sm flex-1"
-                >
-                  Close
-                </button>
-              </div>
+            <div className="flex gap-3 p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSubmitStatusChange}
+                className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+              >
+                Cập nhật
+              </button>
             </div>
           </div>
         </div>

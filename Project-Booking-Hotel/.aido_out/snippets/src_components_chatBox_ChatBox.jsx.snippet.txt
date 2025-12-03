@@ -1,0 +1,42 @@
+// snippet: src\components\chatBox\ChatBox.jsx
+
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useRoomContext } from "../../context/RoomContext";
+import { useAuth } from "../../context/AuthContext";
+import { FiMessageCircle, FiX, FiSend } from "react-icons/fi";
+import QRPaymentModal from "../QRPaymentModal";
+
+// AI Response templates for hotel consultation
+const AI_RESPONSES = {
+  greetings: [
+    "Hello! 👋 I'm your booking assistant. I'll help you find the perfect room. What do you need?",
+    "Welcome! 🏨 I'm here to provide you with an amazing booking experience.",
+  ],
+  room_suggestions: [
+    "Based on your requirements, I recommend these rooms:",
+    "I found rooms that match your needs:",
+  ],
+  price_inquiry: [
+    "Room prices vary by season. Choose dates to see exact pricing!",
+    "Best rates on weekdays. Weekend rates are different!",
+  ],
+  amenities: [
+    "🏊 Swimming Pool, 🏋️ Gym, 🍽️ Restaurant, 🧖 Spa",
+    "🎰 Casino, 🎪 Tennis Court, 🚴 Bike Rental",
+  ],
+  special_requests: [
+    "I've noted your special request. Our team will contact you soon!",
+    "A staff member will reach out to confirm this request.",
+  ],
+};
+
+const QuickReply = ({ label, onClick, icon = "✓" }) => (
+  <button
+    onClick={onClick}
+    className="px-4 py-2 text-sm rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition transform hover:scale-105 active:scale-95 duration-200 font-medium flex items-center gap-2 whitespace-nowrap"
+  >
+    <span>{icon}</span>
+    {label}
+  </button>
+);

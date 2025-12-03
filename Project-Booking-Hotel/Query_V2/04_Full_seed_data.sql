@@ -1,5 +1,5 @@
 -- =====================================================
--- 04_FULL_SEED_DATA.SQL
+-- 04_FULL_SEED_DATA.SQL (UPDATED)
 -- =====================================================
 
 -- 1. AMENITIES
@@ -66,7 +66,7 @@ insert into public.rooms (id, room_no, name, room_type_id, floor, size, type, ca
   (gen_random_uuid(), 'CMB-08', 'Combo Ultimate', (select id from public.room_types where code='CMB'), 5, 70, 'Combo', 'combo', 565, 'Ultimate combo package.', 'available')
 on conflict (room_no) do nothing;
 
--- 4. ROOM IMAGES (ẢNH THẬT TỪ FILE BẠN ĐƯA)
+-- 4. ROOM IMAGES (ẢNH TỪ SUPABASE STORAGE)
 insert into public.room_images (room_type_id, image_url, image_lg_url, display_order)
 select id, 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms/1.png', 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms/1-lg.png', 1 from public.room_types where code = 'STD'
 union all
@@ -83,7 +83,8 @@ on conflict do nothing;
 insert into public.room_reviews (room_type_id, user_name, user_email, rating, comment, stay_date, created_at) values
   ((select id from public.room_types where code='STD'), 'Sophia Nguyen', 'sophia@email.com', 5, 'Room was spotless, pool view stunning.', '2024-10-15', now()),
   ((select id from public.room_types where code='STD'), 'Daniel Park', 'daniel@email.com', 4, 'Bed was plush and breakfast tasty.', '2024-11-10', now()),
-  ((select id from public.room_types where code='DLX'), 'Marco Rossi', 'marco@email.com', 5, 'Serene courtyard setting.', '2024-07-22', now());
+  ((select id from public.room_types where code='DLX'), 'Marco Rossi', 'marco@email.com', 5, 'Serene courtyard setting.', '2024-07-22', now())
+on conflict do nothing;
 
 -- 6. KHUYẾN MÃI & QUY TẮC GIÁ
 insert into public.price_rules (rule_type, room_type_id, apply_fri, apply_sat, apply_sun, price, priority, description, is_active)
@@ -95,39 +96,23 @@ insert into public.promotions (code, name, description, discount_kind, discount_
   ('WEEKEND15', 'Weekend Bonus', 'Giảm 15% cuối tuần', 'percent', 15, '2025-01-01', '2025-12-31', true)
 on conflict (code) do nothing;
 
--- 7. USERS MẪU & BOOKINGS (QUAN TRỌNG ĐỂ TEST)
-DO $$
-DECLARE
-    v_user1_id uuid := '00000000-0000-0000-0000-000000000001';
-    v_user2_id uuid := '00000000-0000-0000-0000-000000000002';
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_user1_id) THEN
-        INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data)
-        VALUES (v_user1_id, 'khach1@example.com', 'hashed', now(), '{"full_name": "Nguyen Van Khach"}');
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_user2_id) THEN
-        INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data)
-        VALUES (v_user2_id, 'khachvip@example.com', 'hashed', now(), '{"full_name": "Tran Thi Vip"}');
-    END IF;
-END $$;
-
--- Tạo Booking Quá khứ
-INSERT INTO public.bookings (id, user_id, confirmation_code, status, check_in, check_out, room_id, room_name, total_amount)
-VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000001', 'BK-PAST-01', 'checked_out', CURRENT_DATE - 10, CURRENT_DATE - 8, (SELECT id FROM public.rooms WHERE room_no = 'STD-01'), 'Standard Room', 230);
--- Tạo Booking Tương lai
-INSERT INTO public.bookings (id, user_id, confirmation_code, status, check_in, check_out, room_id, room_name, total_amount)
-VALUES (gen_random_uuid(), '00000000-0000-0000-0000-000000000002', 'BK-FUTR-02', 'confirmed', CURRENT_DATE + 5, CURRENT_DATE + 7, (SELECT id FROM public.rooms WHERE room_no = 'DLX-01'), 'Deluxe Room', 530);
-
--- Tạo Booking Items
-INSERT INTO public.booking_items (booking_id, room_id, room_type_id, price_per_night, nights, amount)
-SELECT b.id, b.room_id, r.room_type_id, r.price, (b.check_out - b.check_in), (r.price * (b.check_out - b.check_in))
-FROM public.bookings b JOIN public.rooms r ON b.room_id = r.id;
+-- 7. UPDATE PROFILES WITH STATUS (NEW - Support for updated schema)
+-- This updates any existing profiles to have email and status if missing
+update public.profiles 
+set status = 'active' 
+where status is null;
 
 -- 8. LIÊN KẾT TIỆN NGHI (AUTO LINK)
-INSERT INTO public.room_type_amenities (room_type_id, amenity_id)
-SELECT DISTINCT rt.id, a.id FROM public.room_types rt CROSS JOIN LATERAL unnest(rt.facilities) AS facility_name JOIN public.amenities a ON a.name = facility_name ON CONFLICT DO NOTHING;
+insert into public.room_type_amenities (room_type_id, amenity_id)
+select distinct rt.id, a.id 
+from public.room_types rt 
+cross join lateral unnest(rt.facilities) as facility_name 
+join public.amenities a on a.name = facility_name 
+on conflict do nothing;
 
 -- 9. LỊCH LỄ
-INSERT INTO public.holiday_calendar (holiday_date, name, multiplier) VALUES
-    ('2025-01-01', 'New Year 2025', 1.5), ('2025-04-30', 'Reunification Day', 1.3), ('2025-12-25', 'Christmas Day', 1.5)
-ON CONFLICT (holiday_date) DO NOTHING;
+insert into public.holiday_calendar (holiday_date, name, multiplier) values
+    ('2025-01-01', 'New Year 2025', 1.5), 
+    ('2025-04-30', 'Reunification Day', 1.3), 
+    ('2025-12-25', 'Christmas Day', 1.5)
+on conflict (holiday_date) do nothing;

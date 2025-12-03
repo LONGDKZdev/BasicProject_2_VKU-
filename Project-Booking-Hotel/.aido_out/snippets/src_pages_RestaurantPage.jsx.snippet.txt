@@ -1,0 +1,42 @@
+// snippet: src\pages\RestaurantPage.jsx
+
+import { useState } from "react";
+import { ScrollToTop, Toast } from "../components";
+import QRPayment from "../components/QRPayment";
+import Invoice from "../components/Invoice";
+import { useBookingContext } from "../context/BookingContext";
+import { useAuth } from "../context/AuthContext";
+// ⚠️ Local images removed - now use Supabase URLs
+
+const STORAGE_URL = "https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms";
+const PLACEHOLDER_IMG_MENU = "https://via.placeholder.com/400x300?text=Menu+Image";
+import {
+  FaUtensils,
+  FaWineGlassAlt,
+  FaClock,
+  FaMapMarkerAlt,
+  FaPhoneAlt,
+  FaStar,
+  FaCheck,
+} from "react-icons/fa";
+
+const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect fill='%23ddd' width='300' height='200'/%3E%3Ctext x='50%' y='50%' font-size='14' fill='%23999' text-anchor='middle' dy='.3em'%3EMenu Image%3C/text%3E%3C/svg%3E";
+
+// Helper function to get image for menu items (using Supabase Storage URLs)
+const getMenuItemImage = (id) => {
+  if (!id) return PLACEHOLDER_IMG_MENU;
+  
+  // Cycle through images 1-8 (large version)
+  // Assumes restaurant images match the room images for diversity
+  const imgIndex = (id % 8) === 0 ? 8 : (id % 8);
+  return `${STORAGE_URL}/${imgIndex}-lg.png` || PLACEHOLDER_IMG_MENU;
+};
+
+
+const menuCategories = [
+  { id: "appetizers", name: "Appetizers", icon: FaUtensils },
+  { id: "mains", name: "Main Courses", icon: FaUtensils },
+  { id: "desserts", name: "Desserts", icon: FaUtensils },
+  { id: "beverages", name: "Beverages", icon: FaWineGlassAlt },
+  { id: "combos", name: "Combo Meals", icon: FaUtensils },
+];

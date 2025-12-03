@@ -1,0 +1,42 @@
+// snippet: src\pages\SpaPage.jsx
+
+import { useState } from 'react';
+import { ScrollToTop, Toast } from '../components';
+import QRPayment from '../components/QRPayment';
+import Invoice from '../components/Invoice';
+import { useBookingContext } from '../context/BookingContext';
+import { useAuth } from '../context/AuthContext';
+// ⚠️ Local images removed - now use Supabase URLs
+import { FaSpa, FaClock, FaMapMarkerAlt, FaPhoneAlt, FaStar, FaCheck, FaLeaf, FaWater, FaHandSparkles } from 'react-icons/fa';
+
+const STORAGE_URL = "https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms";
+const PLACEHOLDER_IMG_SERVICE = "https://via.placeholder.com/400x300?text=Service+Image";
+
+const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect fill='%23ddd' width='300' height='200'/%3E%3Ctext x='50%' y='50%' font-size='14' fill='%23999' text-anchor='middle' dy='.3em'%3ESpa Service%3C/text%3E%3C/svg%3E";
+
+const spaCategories = [
+  { id: 'massage', name: 'Massage Therapies', icon: FaHandSparkles },
+  { id: 'facial', name: 'Facial Treatments', icon: FaSpa },
+  { id: 'body', name: 'Body Treatments', icon: FaLeaf },
+  { id: 'wellness', name: 'Wellness Packages', icon: FaWater },
+];
+
+// Helper function to get image for spa services
+// Uses Supabase Storage URLs based on room types when available
+const getSpaServiceImage = (id) => {
+  // Use id to cycle through images 1-8.png
+  // Images are named 1-lg.png through 8-lg.png for large format
+  if (!id) return PLACEHOLDER_IMG_SERVICE;
+  
+  const imgIndex = (id % 8) === 0 ? 8 : (id % 8);
+  return `${STORAGE_URL}/${imgIndex}-lg.png` || PLACEHOLDER_IMG_SERVICE;
+};
+
+const spaServices = {
+  massage: [
+    { id: 1, name: 'Swedish Massage', description: 'Classic relaxation massage with long, flowing strokes', duration: '60 min', price: 95, popular: true, image: getSpaServiceImage(1) },
+    { id: 2, name: 'Deep Tissue Massage', description: 'Therapeutic massage targeting muscle tension and knots', duration: '90 min', price: 135, image: getSpaServiceImage(2) },
+    { id: 3, name: 'Hot Stone Massage', description: 'Heated stones for deep muscle relaxation and stress relief', duration: '90 min', price: 145, popular: true, image: getSpaServiceImage(3) },
+    { id: 4, name: 'Aromatherapy Massage', description: 'Essential oils combined with therapeutic massage techniques', duration: '60 min', price: 105, image: getSpaServiceImage(4) },
+    { id: 5, name: 'Thai Massage', description: 'Traditional Thai stretching and acupressure techniques', duration: '90 min', price: 125, image: getSpaServiceImage(5) },
+    { id: 6, name: 'Couples Massage', description: 'Side-by-side massage experience in a private suite', duration: '90 min', price: 280, image: getSpaServiceImage(6) },
