@@ -9,6 +9,7 @@ const Room = ({ room }) => {
 
   const {
     id,
+    roomNo,
     name,
     image,
     size,
@@ -71,7 +72,7 @@ const Room = ({ room }) => {
       </div>
 
       <div className="text-center px-6">
-        <Link to={`/room/${id}`}>
+        <Link to={`/room/${roomNo || id}`}>
           <h3 className="h3">{name || 'Standard Room'}</h3>
         </Link>
 
@@ -99,7 +100,7 @@ const Room = ({ room }) => {
       </div>
 
       <Link
-        to={`/room/${id}`}
+        to={`/room/${roomNo || id}`}
         className="btn btn-secondary btn-sm max-w-[240px] mx-auto duration-300"
       >
         Book now from ${(price || 0).toFixed(2)}

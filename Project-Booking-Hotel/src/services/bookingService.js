@@ -6,9 +6,12 @@ import { supabase } from '../utils/supabaseClient';
 
 export const createBooking = async (bookingData) => {
   try {
+    // Không gửi trường id lên Supabase để dùng default gen_random_uuid()
+    const { id, ...payload } = bookingData || {};
+
     const { data, error } = await supabase
       .from('bookings')
-      .insert([bookingData])
+      .insert([payload])
       .select();
     if (error) throw error;
     return data?.[0] || null;

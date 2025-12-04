@@ -8,13 +8,8 @@ const getNestedValue = (obj, path) => {
 };
 
 export const LanguageProvider = ({ children }) => {
-  const [language, setLanguage] = useState(() => {
-    return localStorage.getItem('hotel_language') || 'en';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('hotel_language', language);
-  }, [language]);
+  // Ngôn ngữ hiện tại chỉ lưu trong state (không ghi vào localStorage)
+  const [language, setLanguage] = useState('en');
 
   const t = useCallback(
     (key, fallbackValue) => {

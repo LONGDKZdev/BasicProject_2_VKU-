@@ -247,13 +247,20 @@ export const fetchPromotions = async () => {
   }
 };
 
-export const fetchRoomReviews = async (roomTypeId) => {
+export const fetchRoomReviews = async (roomId = null, roomTypeId = null) => {
   try {
-    const { data, error } = await supabase
-      .from('room_reviews')
-      .select('*')
-      .eq('room_type_id', roomTypeId)
-      .order('created_at', { ascending: false });
+    let query = supabase.from('room_reviews').select('*');
+    
+    // Ưu tiên fetch theo room_id cụ thể, fallback về room_type_id nếu không có room_id
+    if (roomId) {
+      query = query.eq('room_id', roomId);
+    } else if (roomTypeId) {
+      query = query.eq('room_type_id', roomTypeId);
+    } else {
+      return [];
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   } catch (err) {

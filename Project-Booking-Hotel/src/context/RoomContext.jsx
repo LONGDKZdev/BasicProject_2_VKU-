@@ -36,26 +36,10 @@ const PRICING_DEFAULTS = {
   hourlyRateFactor: 0.25,
 };
 
+// Reviews/bookings are now kept only in memory for the current session.
+// No persistence to localStorage.
 const getInitialReviews = () => {
-  try {
-    return JSON.parse(localStorage.getItem("hotel_room_reviews")) || {};
-  } catch (error) {
-    console.error("Failed to parse stored reviews", error);
-    return {};
-  }
-};
-
-const getInitialBookings = () => {
-  try {
-    return JSON.parse(localStorage.getItem("hotel_bookings")) || [];
-  } catch (error) {
-    console.error("Failed to parse stored bookings", error);
-    return [];
-  }
-};
-
-const persistBookings = (bookings) => {
-  localStorage.setItem("hotel_bookings", JSON.stringify(bookings));
+  return {};
 };
 
 /**
@@ -65,16 +49,21 @@ const persistBookings = (bookings) => {
  */
 const transformDbRoomToFrontend = (dbRoom, reviews = []) => {
   const rt = dbRoom.room_types || {};
+  // Ưu tiên dùng dữ liệu từ room cụ thể, fallback về room type nếu không có
+  const roomName = dbRoom.name || rt.name || `Room ${dbRoom.room_no}`;
+  const roomPrice = dbRoom.price != null ? Number(dbRoom.price) : (Number(rt.base_price) || 115);
+  const roomDescription = dbRoom.description || rt.description || 'A comfortable room.';
+  
   return {
     id: dbRoom.id, // UUID string from DB
     roomTypeId: rt.id, // UUID string of room type (NEW)
     roomNo: dbRoom.room_no,
     floor: dbRoom.floor,
-    name: rt.name || `Room ${dbRoom.room_no}`,
+    name: roomName, // Ưu tiên từ room cụ thể
     type: rt.code || rt.name || 'Standard',
     category: rt.code || 'standard',
-    description: rt.description || 'A comfortable room.',
-    price: Number(rt.base_price) || 115,
+    description: roomDescription, // Ưu tiên từ room cụ thể
+    price: roomPrice, // Ưu tiên từ room cụ thể
     maxPerson: rt.max_person || 2,
     size: dbRoom.size || 35, // From rooms table
     image: dbRoom.image_url || null, // From room_images (Supabase Storage URL)
@@ -84,7 +73,7 @@ const transformDbRoomToFrontend = (dbRoom, reviews = []) => {
     pricing: {
       weekendMultiplier: 1.15,
       holidayMultiplier: 1.35,
-      hourlyRate: Math.round((Number(rt.base_price) || 115) * 0.25),
+      hourlyRate: Math.round(roomPrice * 0.25), // Dùng roomPrice thay vì rt.base_price
     },
   };
 };
@@ -271,7 +260,7 @@ export const RoomContext = ({ children }) => {
   }, [priceBounds]);
 
   /**
-   * Load bookings (try DB first, fallback to localStorage)
+   * Auto-mark completed bookings in memory (no localStorage persistence).
    */
   useEffect(() => {
     setBookings((prev) => {
@@ -286,11 +275,7 @@ export const RoomContext = ({ children }) => {
         }
         return booking;
       });
-      if (changed) {
-        persistBookings(updated);
-        return updated;
-      }
-      return prev;
+      return changed ? updated : prev;
     });
   }, []);
 
@@ -411,8 +396,13 @@ export const RoomContext = ({ children }) => {
 
   const isRoomAvailable = (roomId, start, end, excludeBookingId = null) => {
     if (!start || !end) return true;
-    
-    // Check local bookings (both DB-synced and pending)
+
+    // Ưu tiên dùng DB nếu có kết nối (đảm bảo kiểm tra cả booking từ session khác)
+    if (dbConnected) {
+      return checkAvailabilityAsync(roomId, start, end, excludeBookingId);
+    }
+
+    // Fallback: chỉ kiểm tra bookings trong memory của session hiện tại
     return bookings
       .filter(
         (booking) =>
@@ -496,13 +486,9 @@ export const RoomContext = ({ children }) => {
     return sortRooms(filtered, sortValue);
   };
 
-  const persistReviews = (roomsList) => {
-    const payload = roomsList.reduce((acc, room) => {
-      acc[room.id] = room.reviews || [];
-      return acc;
-    }, {});
-    localStorage.setItem("hotel_room_reviews", JSON.stringify(payload));
-  };
+  // Reviews are currently only stored in memory. This helper is kept
+  // for potential future persistence (e.g. remote cache) but is a no-op now.
+  const persistReviews = () => {};
 
   const handleCheck = (e) => {
     e.preventDefault();
@@ -593,11 +579,9 @@ export const RoomContext = ({ children }) => {
   };
 
   const saveBookings = (updater) => {
-    setBookings((prev) => {
-      const updated = typeof updater === "function" ? updater(prev) : updater;
-      persistBookings(updated);
-      return updated;
-    });
+    setBookings((prev) =>
+      typeof updater === "function" ? updater(prev) : updater
+    );
   };
 
   const bookRoom = ({
@@ -686,7 +670,7 @@ export const RoomContext = ({ children }) => {
       history: [],
     };
 
-    // Save to DB if available, else to localStorage
+    // Save to DB if available; otherwise keep only in memory
     if (dbConnected) {
       // Create in Supabase (async, but we'll optimistically update UI)
       createBooking(newBooking).then((dbBooking) => {
@@ -894,8 +878,23 @@ export const RoomContext = ({ children }) => {
     return updatedBooking;
   };
 
-  const hasUserBookedRoom = (userId, roomId) => {
+  const hasUserBookedRoom = async (userId, roomId) => {
     if (!userId || !roomId) return false;
+
+    // Nếu đã kết nối DB, ưu tiên kiểm tra trực tiếp trên Supabase (bookings table)
+    if (dbConnected) {
+      try {
+        // roomId trong frontend là room UUID; booking lưu room_id + room_type_id.
+        // hasUserBookedRoomType kiểm tra theo room_type_id, nên cần map từ roomId -> roomTypeId.
+        const room = getRoomById(roomId);
+        const roomTypeId = room?.roomTypeId || roomId;
+        return await hasUserBookedRoomType(userId, roomTypeId);
+      } catch (err) {
+        console.error("Error checking booking from DB:", err);
+      }
+    }
+
+    // Fallback: dùng danh sách bookings trong memory (cùng session)
     return bookings.some(
       (booking) =>
         booking.userId === userId &&
@@ -905,7 +904,7 @@ export const RoomContext = ({ children }) => {
   };
 
   /**
-   * Add review - save to DB if available, else to localStorage
+   * Add review - save to DB if available, else keep only in memory
    */
   const addReview = (roomId, review) => {
     // Optimistically update UI

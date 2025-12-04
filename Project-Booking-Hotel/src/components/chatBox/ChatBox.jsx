@@ -4,6 +4,14 @@ import { useRoomContext } from "../../context/RoomContext";
 import { useAuth } from "../../context/SimpleAuthContext";
 import { FiMessageCircle, FiX, FiSend } from "react-icons/fi";
 import QRPaymentModal from "../QRPaymentModal";
+import {
+  recommendRooms,
+  extractIntent,
+  getTimeBasedGreeting,
+  getSuggestedDates,
+  getContextFromChat,
+  generateSuggestions,
+} from "../../utils/aiAssistant";
 
 // AI Response templates for hotel consultation
 const AI_RESPONSES = {
@@ -158,9 +166,24 @@ const ChatBox = () => {
 
   const candidateRooms = useMemo(() => {
     if (!bookingForm.roomName.trim()) return [];
+
     const keyword = bookingForm.roomName.toLowerCase();
-    return allRooms.filter((r) => r.name.toLowerCase().includes(keyword));
-  }, [bookingForm.roomName, allRooms]);
+
+    // Lọc sơ bộ theo tên như cũ để tránh đề xuất quá xa
+    const roughMatches = allRooms.filter((room) =>
+      room.name.toLowerCase().includes(keyword)
+    );
+
+    // Sau đó dùng recommendRooms để chọn vài phòng phù hợp nhất
+    const prefs = {
+      adults: bookingForm.adults || 1,
+      kids: bookingForm.kids || 0,
+      budget: null,
+      amenities: [],
+    };
+
+    return recommendRooms(roughMatches.length ? roughMatches : allRooms, prefs);
+  }, [bookingForm.roomName, bookingForm.adults, bookingForm.kids, allRooms]);
 
   const getRandomResponse = (type) => {
     const responses = AI_RESPONSES[type] || [];
@@ -179,10 +202,19 @@ const ChatBox = () => {
   useEffect(() => {
     if (open && messages.length === 0) {
       setTimeout(() => {
-        pushAI(getRandomResponse("greetings"));
+        const greeting = getTimeBasedGreeting();
+        const suggestedDates = getSuggestedDates();
+        pushAI(
+          `${greeting}\n\n` +
+            "Tôi là trợ lý đặt phòng ảo của bạn. Bạn có thể:\n" +
+            "• Tìm phòng theo ngày và số khách\n" +
+            "• Đặt phòng trực tiếp ở đây\n" +
+            "• Hỏi về giá, khuyến mãi, tiện nghi\n\n" +
+            `Gợi ý nhanh: đêm nay (${suggestedDates.tonight.checkIn}) hoặc cuối tuần tới.`
+        );
       }, 500);
     }
-  }, [open]);
+  }, [open, messages.length]);
 
   const pushAI = (text, delay = 800) => {
     setIsTyping(true);
@@ -248,42 +280,43 @@ const ChatBox = () => {
     if (!text) return;
     pushUser(text);
     setInput("");
-    const t = text.toLowerCase();
 
-    if (t.includes("book") || t.includes("booking")) {
+    const intent = extractIntent(text);
+
+    if (intent === "book") {
       setStage("book");
       pushAI(
-        "Perfect! 🛏️ What type of room would you like to book? Enter the room name or keyword, then provide your details."
+        "Tuyệt vời! 🛏️ Bạn muốn đặt loại phòng nào? Hãy nhập tên phòng hoặc từ khoá (ví dụ: Deluxe, Suite, Gia đình), sau đó điền thông tin liên hệ."
       );
-    } else if (
-      t.includes("find") ||
-      t.includes("room") ||
-      t.includes("recommend") ||
-      t.includes("suggest")
-    ) {
+    } else if (intent === "search") {
       setStage("filter");
       pushAI(
-        "Sure! 👍 Select your check-in and check-out dates, and number of guests. I'll recommend the best rooms for you."
+        "Được thôi! 👍 Hãy chọn ngày nhận/trả phòng và số khách, tôi sẽ gợi ý những phòng phù hợp nhất cho bạn."
       );
-    } else if (
-      t.includes("amenities") ||
-      t.includes("facilities") ||
-      t.includes("services")
-    ) {
+    } else if (intent === "amenities") {
+      const ctx = getContextFromChat([...messages, { role: "user", text }]);
+      const extra = generateSuggestions(ctx, "idle").join("\n") || "";
       pushAI(
         `${getRandomResponse(
           "amenities"
-        )}\n\nWould you like to know more details about any specific amenity?`
+        )}\n\nBạn quan tâm thêm tiện nghi nào khác không?\n${extra}`.trim()
       );
-    } else if (t.includes("price") || t.includes("cost")) {
+    } else if (intent === "price") {
       pushAI(getRandomResponse("price_inquiry"));
-    } else if (t.includes("contact") || t.includes("support")) {
+    } else if (intent === "contact") {
       pushAI(
-        "📞 Hotline: 1-800-HOTEL\n📧 Email: support@hotel.com\n\nHow can I help you?"
+        "📞 Hotline: 1-800-HOTEL\n📧 Email: support@hotel.com\n\nBạn cứ mô tả vấn đề, tôi sẽ hướng dẫn bước tiếp theo."
       );
     } else {
+      const ctx = getContextFromChat([...messages, { role: "user", text }]);
+      const suggestions = generateSuggestions(ctx, stage).join("\n");
       pushAI(
-        "Thank you! 😊 You can use the buttons below or ask me about:\n• Find suitable rooms\n• Book a room\n• Prices & promotions\n• Amenities & services"
+        `Cảm ơn bạn! 😊 Bạn có thể hỏi tôi về:\n` +
+          "• Tìm phòng phù hợp\n" +
+          "• Đặt phòng\n" +
+          "• Giá & khuyến mãi\n" +
+          "• Tiện nghi & dịch vụ\n" +
+          (suggestions ? `\nGợi ý thêm:\n${suggestions}` : "")
       );
     }
   };

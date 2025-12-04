@@ -1,36 +1,15 @@
-/**
- * Clear all test data from localStorage
- * Run this once to clean up the system
- */
+// Legacy helper file previously used to clear localStorage-based test data.
+// Booking/review data is now stored exclusively in Supabase, so these helpers
+// are left as no-ops for backward compatibility and should not be used.
+
 export const clearAllTestData = () => {
-  const keysToDelete = [
-    "hotel_bookings",
-    "hotel_room_reviews",
-    "users",
-    "hotels",
-    "auth_token",
-    "user_session",
-  ];
-
-  keysToDelete.forEach((key) => {
-    localStorage.removeItem(key);
-  });
-
-  console.log("✅ Cleared all test data from localStorage");
+  console.warn("clearAllTestData(): localStorage-based test data has been removed.");
 };
 
-/**
- * Reset bookings only
- */
 export const clearBookings = () => {
-  localStorage.removeItem("hotel_bookings");
-  console.log("✅ Cleared all bookings");
+  console.warn("clearBookings(): localStorage-based bookings have been removed.");
 };
 
-/**
- * Reset reviews only
- */
 export const clearReviews = () => {
-  localStorage.removeItem("hotel_room_reviews");
-  console.log("✅ Cleared all reviews");
+  console.warn("clearReviews(): localStorage-based reviews have been removed.");
 };

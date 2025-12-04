@@ -368,6 +368,28 @@ export const updateUserProfile = async (userId, updates) => {
     if (updates.newsletter !== undefined) updateData.newsletter = updates.newsletter;
     if (updates.bio !== undefined) updateData.bio = updates.bio;
 
+    // Optional: update email nếu được truyền vào và khác hiện tại
+    if (updates.email !== undefined) {
+      const newEmail = updates.email.toLowerCase().trim();
+      if (!newEmail.includes('@')) {
+        return { success: false, error: 'Invalid email address' };
+      }
+
+      // Kiểm tra trùng email với user khác
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', newEmail)
+        .neq('id', userId)
+        .maybeSingle();
+
+      if (existing) {
+        return { success: false, error: 'Email is already in use' };
+      }
+
+      updateData.email = newEmail;
+    }
+
     const { data, error } = await supabase
       .from('users')
       .update(updateData)

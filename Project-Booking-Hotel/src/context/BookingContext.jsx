@@ -7,24 +7,13 @@ import {
   updateRestaurantBookingStatus,
   createSpaBooking,
   updateSpaBookingStatus,
+  fetchUserBookings,
+  fetchUserRestaurantBookings,
+  fetchUserSpaBookings,
 } from '../services/bookingService';
+import { useAuth } from '../context/SimpleAuthContext';
 
 const BookingContext = createContext();
-
-const getInitialBookings = (type) => {
-  try {
-    const key = `hotel_${type}_bookings`;
-    return JSON.parse(localStorage.getItem(key)) || [];
-  } catch (error) {
-    console.error(`Failed to parse stored ${type} bookings`, error);
-    return [];
-  }
-};
-
-const persistBookings = (bookings, type) => {
-  const key = `hotel_${type}_bookings`;
-  localStorage.setItem(key, JSON.stringify(bookings));
-};
 
 const createId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -34,21 +23,107 @@ const createId = () => {
 };
 
 export const BookingProvider = ({ children }) => {
-  const [roomBookings, setRoomBookings] = useState(() => getInitialBookings('room'));
-  const [restaurantBookings, setRestaurantBookings] = useState(() => getInitialBookings('restaurant'));
-  const [spaBookings, setSpaBookings] = useState(() => getInitialBookings('spa'));
+  const { user } = useAuth();
 
-  useEffect(() => {
-    persistBookings(roomBookings, 'room');
-  }, [roomBookings]);
+  // These states now live only in memory for the current session.
+  // Source of truth is Supabase; on login we load all bookings for that user.
+  const [roomBookings, setRoomBookings] = useState([]);
+  const [restaurantBookings, setRestaurantBookings] = useState([]);
+  const [spaBookings, setSpaBookings] = useState([]);
 
-  useEffect(() => {
-    persistBookings(restaurantBookings, 'restaurant');
-  }, [restaurantBookings]);
+  /**
+   * Helpers: map rows from Supabase to the unified shape
+   * that the rest of the app (UserDashboard, etc.) is already using.
+   */
+  const mapRoomBookingFromDb = (row) => ({
+    id: row.id,
+    confirmationCode: row.confirmation_code,
+    roomId: row.room_id,
+    roomName: row.room_name,
+    userId: row.user_id,
+    userEmail: row.user_email,
+    userName: row.user_name,
+    checkIn: row.check_in,
+    checkOut: row.check_out,
+    adults: row.num_adults,
+    kids: row.num_children,
+    totalNights: row.total_nights,
+    totalPrice: Number(row.total_amount) || 0,
+    pricingBreakdown: row.pricing_breakdown || [],
+    note: row.note,
+    promoCode: row.promo_code,
+    subtotal: Number(row.subtotal) || 0,
+    discount: Number(row.discount) || 0,
+    status: row.status,
+    type: 'room',
+    createdAt: row.created_at,
+    history: row.history || [],
+  });
 
+  const mapRestaurantBookingFromDb = (row) => ({
+    id: row.id,
+    confirmationCode: row.confirmation_code,
+    type: 'restaurant',
+    userId: row.user_id,
+    userEmail: row.email,
+    userName: row.name,
+    checkIn: row.reservation_at,
+    checkOut: row.reservation_at,
+    guests: row.guests,
+    specialRequests: row.special_requests,
+    totalPrice: Number(row.total_price) || 0,
+    status: row.status,
+    createdAt: row.created_at,
+  });
+
+  const mapSpaBookingFromDb = (row) => ({
+    id: row.id,
+    confirmationCode: row.confirmation_code,
+    type: 'spa',
+    userId: row.user_id,
+    userEmail: row.email,
+    userName: row.name,
+    checkIn: row.appointment_at,
+    checkOut: row.appointment_at,
+    serviceName: row.service_name,
+    duration: row.service_duration,
+    therapist: row.therapist,
+    specialRequests: row.special_requests,
+    totalPrice: Number(row.total_price) || 0,
+    status: row.status,
+    createdAt: row.created_at,
+  });
+
+  /**
+   * Load all bookings for the current user from Supabase.
+   * Runs on initial load and whenever user.id changes.
+   */
   useEffect(() => {
-    persistBookings(spaBookings, 'spa');
-  }, [spaBookings]);
+    const loadUserBookings = async () => {
+      if (!user?.id) {
+        setRoomBookings([]);
+        setRestaurantBookings([]);
+        setSpaBookings([]);
+        return;
+      }
+
+      try {
+        const [roomRows, restaurantRows, spaRows] = await Promise.all([
+          fetchUserBookings(user.id),
+          fetchUserRestaurantBookings(user.id),
+          fetchUserSpaBookings(user.id),
+        ]);
+
+        setRoomBookings((roomRows || []).map(mapRoomBookingFromDb));
+        setRestaurantBookings((restaurantRows || []).map(mapRestaurantBookingFromDb));
+        setSpaBookings((spaRows || []).map(mapSpaBookingFromDb));
+      } catch (err) {
+        console.error('Failed to load bookings for user', user.id, err);
+      }
+    };
+
+    loadUserBookings();
+  }, [user?.id]);
 
   const createRoomBookingHandler = (bookingData) => {
     const confirmationCode = `ROOM-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
@@ -106,7 +181,14 @@ export const BookingProvider = ({ children }) => {
       id: createId(),
       confirmationCode,
       type: 'restaurant',
-      ...bookingData,
+      userId: bookingData.userId,
+      userEmail: bookingData.userEmail || bookingData.email,
+      userName: bookingData.userName || bookingData.name,
+      checkIn: bookingData.date,
+      checkOut: bookingData.date,
+      guests: bookingData.guests || 1,
+      specialRequests: bookingData.specialRequests || '',
+      totalPrice: bookingData.totalPrice || bookingData.price || 0,
       status: 'pending_payment',
       createdAt: new Date().toISOString(),
     };
@@ -145,7 +227,16 @@ export const BookingProvider = ({ children }) => {
       id: createId(),
       confirmationCode,
       type: 'spa',
-      ...bookingData,
+      userId: bookingData.userId,
+      userEmail: bookingData.userEmail || bookingData.email,
+      userName: bookingData.userName || bookingData.name,
+      checkIn: bookingData.date,
+      checkOut: bookingData.date,
+      serviceName: bookingData.serviceName || bookingData.service,
+      duration: bookingData.duration,
+      therapist: bookingData.therapist,
+      specialRequests: bookingData.specialRequests || '',
+      totalPrice: bookingData.totalPrice || bookingData.price || 0,
       status: 'pending_payment',
       createdAt: new Date().toISOString(),
     };

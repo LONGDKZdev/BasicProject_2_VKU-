@@ -385,28 +385,19 @@ export const PERFORMANCE_TESTS = {
 export const DEBUG_HELPERS = {
   // Log all messages
   logMessages: () => {
-    const key = `hotel_chat_history_${
-      localStorage.getItem("currentUserId") || "guest"
-    }`;
-    const messages = JSON.parse(localStorage.getItem(key) || "[]");
-    console.table(messages);
+    console.warn("logMessages(): localStorage-based history has been removed.");
   },
 
   // Clear chat history
   clearHistory: () => {
-    const keys = Object.keys(localStorage).filter((k) =>
-      k.includes("hotel_chat")
-    );
-    keys.forEach((k) => localStorage.removeItem(k));
-    console.log("Chat history cleared");
+    console.warn("clearHistory(): localStorage-based history has been removed.");
   },
 
   // Log analytics
   logAnalytics: () => {
-    const analytics = JSON.parse(
-      localStorage.getItem("hotel_chat_analytics") || "[]"
+    console.warn(
+      "logAnalytics(): localStorage-based analytics has been removed."
     );
-    console.table(analytics);
   },
 
   // Test validation

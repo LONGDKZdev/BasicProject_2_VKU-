@@ -4,12 +4,39 @@ import Invoice from '../components/Invoice';
 import { useRoomContext } from '../context/RoomContext';
 import { useAuth } from '../context/SimpleAuthContext';
 import { hotelRules } from '../constants/data';
-import { useParams } from 'react-router-dom';
-import { FaCheck, FaStar } from 'react-icons/fa';
-import { useMemo, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import {
+  FaCheck,
+  FaStar,
+  FaWifi,
+  FaDumbbell,
+  FaSwimmingPool,
+  FaUtensils,
+  FaCar,
+  FaSnowflake,
+} from 'react-icons/fa';
+import { useMemo, useState, useEffect } from 'react';
+import { fetchRoomReviews, createReview } from '../services/roomService';
 
 // Placeholder image - will be replaced by Supabase Storage URL
-const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600'%3E%3Crect fill='%23ddd' width='800' height='600'/%3E%3Ctext x='50%' y='50%' font-size='24' fill='%23999' text-anchor='middle' dy='.3em'%3ELoading image...%3C/text%3E%3C/svg%3E";
+const PLACEHOLDER_IMG =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600'%3E%3Crect fill='%23ddd' width='800' height='600'/%3E%3Ctext x='50%' y='50%' font-size='24' fill='%23999' text-anchor='middle' dy='.3em'%3ELoading image...%3C/text%3E%3C/svg%3E";
+
+// Map facility name -> icon (purely visual, không thay đổi layout)
+const getFacilityIcon = (rawName) => {
+  const name = (typeof rawName === 'string' ? rawName : rawName?.name || '').toLowerCase();
+
+  if (name.includes('wifi') || name.includes('wi-fi')) return <FaWifi className="text-3xl text-accent" />;
+  if (name.includes('gym') || name.includes('fitness')) return <FaDumbbell className="text-3xl text-accent" />;
+  if (name.includes('pool') || name.includes('swim')) return <FaSwimmingPool className="text-3xl text-accent" />;
+  if (name.includes('restaurant') || name.includes('breakfast') || name.includes('dining'))
+    return <FaUtensils className="text-3xl text-accent" />;
+  if (name.includes('parking') || name.includes('car')) return <FaCar className="text-3xl text-accent" />;
+  if (name.includes('air') || name.includes('conditioning') || name.includes('ac'))
+    return <FaSnowflake className="text-3xl text-accent" />;
+
+  return <FaCheck className="text-3xl text-accent" />;
+};
 
 const createLocalId = () => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -19,20 +46,19 @@ const createLocalId = () => {
 };
 
 const RoomDetails = () => {
-  const { id } = useParams();
+  const { roomNo } = useParams();
   const {
     allRooms,
     bookRoom,
     confirmBookingPayment,
     hasUserBookedRoom,
-    addReview,
     calculatePricingForRoom,
   } = useRoomContext();
   const { user, isAuthenticated } = useAuth();
 
-  // Support both numeric IDs (legacy) and UUID strings (new)
+  // Tìm room theo room_no thay vì UUID để bảo mật URL
   const room = allRooms.find(roomItem => 
-    roomItem.id === id || roomItem.id === Number(id)
+    roomItem.roomNo === roomNo || roomItem.room_no === roomNo
   );
 
   const [reservation, setReservation] = useState({
@@ -54,6 +80,7 @@ const RoomDetails = () => {
   const [showQRPayment, setShowQRPayment] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [currentBooking, setCurrentBooking] = useState(null);
+  const [reviews, setReviews] = useState([]);
 
   const maxGuests = room?.maxPerson || 1;
 
@@ -67,15 +94,18 @@ const RoomDetails = () => {
   }, [reservation.checkIn, reservation.checkOut]);
 
   const averageRating = useMemo(() => {
-    if (!room?.reviews?.length) return null;
-    const score = room.reviews.reduce((sum, review) => sum + review.rating, 0) / room.reviews.length;
+    if (!reviews.length) return null;
+    const score = reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
     return score.toFixed(1);
-  }, [room]);
+  }, [reviews]);
 
   if (!room) {
     return (
       <section className='min-h-screen flex items-center justify-center'>
-        <p className='text-xl text-primary/70'>Không tìm thấy phòng phù hợp.</p>
+        <div className='text-center'>
+          <p className='text-xl text-primary/70 mb-4'>Không tìm thấy phòng với mã: {roomNo}</p>
+          <Link to='/rooms' className='btn btn-secondary'>Xem danh sách phòng</Link>
+        </div>
       </section>
     );
   }
@@ -86,7 +116,37 @@ const RoomDetails = () => {
     return calculatePricingForRoom(room, reservation.checkIn, reservation.checkOut);
   }, [room, reservation.checkIn, reservation.checkOut, calculatePricingForRoom]);
   const totalPrice = pricingPreview?.total ?? nights * room.price;
-  const canReview = isAuthenticated() && hasUserBookedRoom(user?.id, room.id);
+
+  // Load existing reviews for this specific room from Supabase
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadReviews = async () => {
+      if (!room?.id) return;
+      // Fetch reviews theo room_id cụ thể, không phải room_type_id
+      const data = await fetchRoomReviews(room.id, null);
+      if (!isMounted) return;
+      const normalized = (data || []).map((r) => ({
+        id: r.id,
+        userId: r.user_id,
+        userName: r.user_name,
+        userEmail: r.user_email,
+        rating: r.rating,
+        comment: r.comment,
+        createdAt: r.created_at,
+      }));
+      setReviews(normalized);
+    };
+
+    loadReviews();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [room?.id]);
+
+  // Với yêu cầu hiện tại: chỉ cần đăng nhập là có thể bình luận
+  // (không bắt buộc phải có booking trước đó)
 
   const showToast = (payload) => {
     setToast(payload);
@@ -171,26 +231,41 @@ const RoomDetails = () => {
       showToast({ type: 'info', message: 'Sign in to share your review.' });
       return;
     }
-    if (!canReview) {
-      showToast({ type: 'error', message: 'Only confirmed guests can rate this room.' });
-      return;
-    }
     if (!reviewForm.comment.trim()) {
       showToast({ type: 'error', message: 'Please add your thoughts before submitting.' });
       return;
     }
 
-    addReview(room.id, {
+    const newReview = {
       id: createLocalId(),
       userId: user?.id,
       userName: user?.name || user?.email?.split('@')[0],
+      userEmail: user?.email,
       rating: reviewForm.rating,
       comment: reviewForm.comment,
       createdAt: new Date().toISOString(),
-    });
+    };
 
+    // Cập nhật UI ngay
+    setReviews((prev) => [newReview, ...prev]);
     showToast({ type: 'success', message: 'Thank you for sharing your experience!' });
     setReviewForm({ rating: 5, comment: '' });
+
+    // Lưu về Supabase (theo room_id cụ thể)
+    if (room?.id) {
+      createReview({
+        room_id: room.id,
+        room_type_id: room.roomTypeId, // Vẫn giữ để backward compatibility
+        user_id: newReview.userId,
+        user_name: newReview.userName,
+        user_email: newReview.userEmail,
+        rating: newReview.rating,
+        comment: newReview.comment,
+        created_at: newReview.createdAt,
+      }).catch((err) => {
+        console.error('Error saving review to Supabase:', err);
+      });
+    }
   };
 
   return (
@@ -246,13 +321,13 @@ const RoomDetails = () => {
               <div className="grid grid-cols-3 gap-6 mb-12">
                 {room.facilities && room.facilities.length > 0 ? (
                   room.facilities.map((item, index) => (
-                    <div key={index} className='flex items-center gap-x-3 flex-1'>
-                      <div className='text-3xl text-accent'>✓</div>
-                      <div className='text-base'>{typeof item === 'string' ? item : item.name}</div>
+                    <div key={index} className="flex items-center gap-x-3 flex-1">
+                      {getFacilityIcon(item)}
+                      <div className="text-base">{typeof item === 'string' ? item : item.name}</div>
                     </div>
                   ))
                 ) : (
-                  <p className='text-primary/70 col-span-3'>No facilities information available</p>
+                  <p className="text-primary/70 col-span-3">No facilities information available</p>
                 )}
               </div>
             </div>
@@ -260,8 +335,8 @@ const RoomDetails = () => {
             <div className='space-y-6'>
               <h3 className='h3'>Guest impressions</h3>
               <div className='space-y-4'>
-                {room.reviews?.length ? (
-                  room.reviews.map(review => (
+                {reviews.length ? (
+                  reviews.map(review => (
                     <div key={review.id} className='border border-accent/10 p-5 bg-white shadow-sm'>
                       <div className='flex justify-between items-center mb-2'>
                         <div>
@@ -292,7 +367,7 @@ const RoomDetails = () => {
 
               <div className='mt-8'>
                 <h4 className='font-primary text-2xl mb-4'>Share your stay experience</h4>
-                {canReview ? (
+                {isAuthenticated() ? (
                   <form onSubmit={handleReviewSubmit} className='space-y-4'>
                     <div>
                       <label className='block text-sm font-semibold mb-2'>Rating</label>
@@ -324,7 +399,7 @@ const RoomDetails = () => {
                   </form>
                 ) : (
                   <p className='text-sm text-primary/70'>
-                    Sign in and complete a stay in this room to unlock review privileges.
+                    Sign in to unlock review privileges.
                   </p>
                 )}
               </div>

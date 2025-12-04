@@ -1,42 +1,11 @@
 import { useNavigate } from "react-router-dom";
-import {
-  clearAllTestData,
-  clearBookings,
-  clearReviews,
-} from "../utils/clearTestData";
 import { LogoDark } from "../assets";
 
 const CleanupPage = () => {
   const navigate = useNavigate();
 
-  const handleClearAll = () => {
-    if (
-      window.confirm(
-        "⚠️ Are you sure? This will delete ALL data (bookings, reviews, users)!"
-      )
-    ) {
-      clearAllTestData();
-      alert("✅ All data cleared! Redirecting...");
-      localStorage.clear();
-      window.location.href = "/";
-    }
-  };
-
-  const handleClearBookings = () => {
-    if (window.confirm("⚠️ Delete all bookings?")) {
-      clearBookings();
-      alert("✅ Bookings cleared!");
-      window.location.reload();
-    }
-  };
-
-  const handleClearReviews = () => {
-    if (window.confirm("⚠️ Delete all reviews?")) {
-      clearReviews();
-      alert("✅ Reviews cleared!");
-      window.location.reload();
-    }
-  };
+  // Trang này giờ chỉ là trang thông tin; các nút thao tác xoá localStorage
+  // đã được vô hiệu hóa vì hệ thống không còn lưu booking/review ở local.
 
   return (
     <div className="min-h-screen py-12 bg-gradient-to-br from-red-50 to-orange-50">
@@ -62,24 +31,10 @@ const CleanupPage = () => {
 
           <div className="space-y-3">
             <button
-              onClick={handleClearBookings}
-              className="w-full py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold transition"
+              disabled
+              className="w-full py-3 px-4 bg-gray-300 text-gray-600 rounded-lg font-semibold cursor-not-allowed"
             >
-              🗑️ Clear Bookings Only
-            </button>
-
-            <button
-              onClick={handleClearReviews}
-              className="w-full py-3 px-4 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-semibold transition"
-            >
-              ⭐ Clear Reviews Only
-            </button>
-
-            <button
-              onClick={handleClearAll}
-              className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition"
-            >
-              🔥 Clear Everything
+              Local data cleanup is no longer required
             </button>
           </div>
 
@@ -91,11 +46,10 @@ const CleanupPage = () => {
           </button>
 
           <div className="text-xs text-primary/60 text-center pt-4 border-t">
-            <p>All data is stored in browser localStorage</p>
-            <p>You can also manually clear by running in console:</p>
-            <code className="block mt-2 bg-gray-100 p-2 rounded text-xs break-all">
-              localStorage.clear(); location.reload();
-            </code>
+            <p>
+              Booking and review data is now stored exclusively in Supabase.
+              This utility page is kept only for backward compatibility.
+            </p>
           </div>
         </div>
       </div>

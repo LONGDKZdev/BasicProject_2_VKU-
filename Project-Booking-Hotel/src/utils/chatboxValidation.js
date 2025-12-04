@@ -248,24 +248,10 @@ export const logChatInteraction = (event, data = {}) => {
     ...data,
   };
 
-  // Store locally for analytics
-  try {
-    const key = "hotel_chat_analytics";
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
-    existing.push(interaction);
-
-    // Keep only last 100 interactions
-    if (existing.length > 100) {
-      existing.shift();
-    }
-
-    localStorage.setItem(key, JSON.stringify(existing));
-  } catch (e) {
-    console.error("Analytics logging failed:", e);
-  }
-
-  // Could also send to server
-  // await fetch('/api/analytics', { method: 'POST', body: JSON.stringify(interaction) });
+  // Hiện tại chỉ log ra console, không lưu localStorage
+  // (có thể thay bằng gửi lên Supabase/API analytics trong tương lai)
+  // eslint-disable-next-line no-console
+  console.debug("Chat interaction:", interaction);
 };
 
 /**

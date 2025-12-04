@@ -52,6 +52,7 @@ const UserDashboard = () => {
   const [rescheduleDates, setRescheduleDates] = useState({ checkIn: null, checkOut: null });
   const [profileForm, setProfileForm] = useState({
     name: '',
+    email: '',
     phone: '',
     country: '',
     city: '',
@@ -64,6 +65,7 @@ const UserDashboard = () => {
     if (user) {
       setProfileForm({
         name: user.name || '',
+        email: user.email || '',
         phone: user.phone || '',
         country: user.country || '',
         city: user.city || '',
@@ -75,21 +77,19 @@ const UserDashboard = () => {
   }, [user]);
 
   const userBookings = useMemo(() => {
-    // Combine all types of bookings (Room, Restaurant, Spa)
+    // Combine all types of bookings (Room, Restaurant, Spa) using
+    // the normalized objects provided by RoomContext + BookingContext.
     if (!user?.id) return [];
-    
+
     const roomBookings = getRoomBookings(user.id);
     const restBookings = getUserRestaurantBookings(user.id);
     const spaBookings = getUserSpaBookings(user.id);
-    
-    // Normalize data structure for consistency (Room bookings already have type='room' from context)
-    const combinedBookings = [
-      ...roomBookings,
-      ...(restBookings || []).map(b => ({ ...b, type: 'restaurant', checkIn: b.reservationAt, checkOut: b.reservationAt })), // Simplify date for Restaurant/Spa check (use reservationAt/appointmentAt)
-      ...(spaBookings || []).map(b => ({ ...b, type: 'spa', checkIn: b.appointmentAt, checkOut: b.appointmentAt })),
+
+    return [
+      ...(roomBookings || []),
+      ...(restBookings || []),
+      ...(spaBookings || []),
     ];
-    
-    return combinedBookings;
   }, [user, getRoomBookings, getUserRestaurantBookings, getUserSpaBookings]);
 
   const categorized = useMemo(() => {
@@ -104,16 +104,23 @@ const UserDashboard = () => {
     userBookings.forEach((booking) => {
       if (booking.status === 'cancelled') {
         data.cancelled.push(booking);
-      } else if (booking.status === 'pending_payment' || booking.status === 'pending') {
-        data.pending.push(booking);
-      } else if (booking.type === 'room' && new Date(booking.checkOut) < now) {
-        data.past.push(booking);
-      } else if (booking.type === 'room' && new Date(booking.checkOut) >= now) {
-        data.upcoming.push(booking);
-      } else if (booking.type !== 'room' && new Date(booking.checkIn) < now) { // Non-room bookings, checkIn maps to reservation/appointment time
-        data.past.push(booking);
-      } else if (booking.type !== 'room' && new Date(booking.checkIn) >= now) {
-        data.upcoming.push(booking);
+      } else if (booking.type === 'room') {
+        // Với phòng: mọi trạng thái (pending_payment, confirmed, ...) đều coi là upcoming
+        // nếu ngày checkOut >= hôm nay; nếu đã qua thì đưa vào past.
+        const checkOut = new Date(booking.checkOut);
+        if (checkOut < now) {
+          data.past.push(booking);
+        } else {
+          data.upcoming.push(booking);
+        }
+      } else {
+        // Với restaurant/spa: dùng checkIn làm mốc
+        const checkIn = new Date(booking.checkIn);
+        if (checkIn < now) {
+          data.past.push(booking);
+        } else {
+          data.upcoming.push(booking);
+        }
       }
     });
     
@@ -180,6 +187,11 @@ const UserDashboard = () => {
     // Validation
     if (!profileForm.name || profileForm.name.trim().length < 2) {
       showToast({ type: 'error', message: 'Name must be at least 2 characters' });
+      return;
+    }
+
+    if (!profileForm.email || !profileForm.email.includes('@')) {
+      showToast({ type: 'error', message: 'Please enter a valid email' });
       return;
     }
     
@@ -392,6 +404,18 @@ const UserDashboard = () => {
           />
         </div>
         <div>
+          <label className='block text-sm font-semibold mb-2'>Email</label>
+          <input
+            type='email'
+            value={profileForm.email}
+            onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+            className='w-full border border-[#eadfcf] px-4 py-3 focus:outline-none focus:border-accent'
+          />
+        </div>
+      </div>
+
+      <div className='grid md:grid-cols-2 gap-6'>
+        <div>
           <label className='block text-sm font-semibold mb-2'>Phone</label>
           <input
             type='tel'
@@ -400,9 +424,6 @@ const UserDashboard = () => {
             className='w-full border border-[#eadfcf] px-4 py-3 focus:outline-none focus:border-accent'
           />
         </div>
-      </div>
-
-      <div className='grid md:grid-cols-2 gap-6'>
         <div>
           <label className='block text-sm font-semibold mb-2'>Country</label>
           <input

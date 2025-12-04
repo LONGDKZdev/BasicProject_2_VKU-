@@ -191,12 +191,14 @@ create table if not exists public.booking_items (
 -- ====== 11. ROOM REVIEWS ======
 create table if not exists public.room_reviews (
   id uuid primary key default gen_random_uuid(),
-  room_type_id uuid not null references public.room_types(id) on delete cascade,
+  room_id uuid references public.rooms(id) on delete cascade,
+  room_type_id uuid references public.room_types(id) on delete cascade,
   booking_id uuid references public.bookings(id) on delete set null,
   user_id uuid references public.users(id) on delete set null,
   user_name text, user_email text, rating int not null check (rating between 1 and 5),
   comment text, stay_date date,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint chk_room_reviews_room check (room_id is not null or room_type_id is not null)
 );
 
 -- ====== 12. OTHERS (Audit, Restaurant, Spa, Holidays) ======
