@@ -187,6 +187,64 @@ export const fetchUserSpaBookings = async (userId) => {
   }
 };
 
+/**
+ * Cancellation functions with refund logic
+ */
+export const cancelRoomBooking = async (bookingId) => {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .update({ 
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        refund_amount: null // Calculate based on cancellation policy
+      })
+      .eq('id', bookingId)
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error cancelling room booking:', err);
+    throw err;
+  }
+};
+
+export const cancelRestaurantBooking = async (bookingId) => {
+  try {
+    const { data, error } = await supabase
+      .from('restaurant_bookings')
+      .update({ 
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString()
+      })
+      .eq('id', bookingId)
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error cancelling restaurant booking:', err);
+    throw err;
+  }
+};
+
+export const cancelSpaBooking = async (bookingId) => {
+  try {
+    const { data, error } = await supabase
+      .from('spa_bookings')
+      .update({ 
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString()
+      })
+      .eq('id', bookingId)
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error cancelling spa booking:', err);
+    throw err;
+  }
+};
+
 export default {
     createBooking,
     fetchUserBookings,
@@ -197,4 +255,7 @@ export default {
     createSpaBooking,
     updateSpaBookingStatus,
     fetchUserSpaBookings,
+    cancelRoomBooking,
+    cancelRestaurantBooking,
+    cancelSpaBooking,
 };

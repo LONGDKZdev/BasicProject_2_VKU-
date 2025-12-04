@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRoomContext } from "../../context/RoomContext";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/SimpleAuthContext";
 import { FiMessageCircle, FiX, FiSend } from "react-icons/fi";
 import QRPaymentModal from "../QRPaymentModal";
 

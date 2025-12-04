@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SimpleAuthContext';
 import { useRoomContext } from '../context/RoomContext';
 import { useBookingContext } from '../context/BookingContext'; // NEW
 import { Link } from 'react-router-dom';
@@ -176,6 +176,24 @@ const UserDashboard = () => {
 
   const handleProfileSubmit = (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (!profileForm.name || profileForm.name.trim().length < 2) {
+      showToast({ type: 'error', message: 'Name must be at least 2 characters' });
+      return;
+    }
+    
+    const phoneRegex = /^[\d\s\-\+\(\)]*$/;
+    if (profileForm.phone && !phoneRegex.test(profileForm.phone)) {
+      showToast({ type: 'error', message: 'Please enter a valid phone number' });
+      return;
+    }
+    
+    if (!profileForm.country || profileForm.country.trim() === '') {
+      showToast({ type: 'error', message: 'Please select a country' });
+      return;
+    }
+    
     updateUserProfile(profileForm);
     showToast({ type: 'success', message: 'Profile updated successfully!' });
   };

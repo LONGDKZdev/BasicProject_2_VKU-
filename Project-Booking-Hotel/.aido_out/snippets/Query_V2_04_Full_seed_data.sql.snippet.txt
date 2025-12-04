@@ -1,8 +1,12 @@
 // snippet: Query_V2\04_Full_seed_data.sql
 
 -- =====================================================
--- 04_FULL_SEED_DATA.SQL (UPDATED)
+-- 04_FULL_SEED_DATA.SQL
 -- =====================================================
+
+-- NOTE: Users are created via seed-users.js (Node.js script)
+-- This file seeds static data only (amenities, rooms, bookings)
+-- To create test users with proper password hashing, run: node seed-users.js
 
 -- 1. AMENITIES
 insert into public.amenities (name, icon_name) values
@@ -36,7 +40,3 @@ insert into public.rooms (id, room_no, name, room_type_id, floor, size, type, ca
   (gen_random_uuid(), 'DLX-03', 'Deluxe Modern', (select id from public.room_types where code='DLX'), 3, 42, 'Deluxe', 'deluxe', 265, 'Modern deluxe room.', 'available'),
   (gen_random_uuid(), 'DLX-04', 'Deluxe Sophisticated', (select id from public.room_types where code='DLX'), 3, 46, 'Deluxe', 'deluxe', 295, 'Sophisticated deluxe suite.', 'available'),
   (gen_random_uuid(), 'DLX-05', 'Deluxe Exquisite', (select id from public.room_types where code='DLX'), 4, 50, 'Deluxe', 'deluxe', 315, 'Exquisite deluxe room.', 'available'),
-  (gen_random_uuid(), 'DLX-06', 'Deluxe Paramount', (select id from public.room_types where code='DLX'), 4, 54, 'Deluxe', 'deluxe', 335, 'Paramount deluxe suite.', 'available'),
-  (gen_random_uuid(), 'DLX-07', 'Deluxe Prestigious', (select id from public.room_types where code='DLX'), 4, 58, 'Deluxe', 'deluxe', 365, 'Prestigious deluxe suite.', 'available'),
-  (gen_random_uuid(), 'DLX-08', 'Deluxe Elite', (select id from public.room_types where code='DLX'), 4, 52, 'Deluxe', 'deluxe', 285, 'Elite deluxe experience.', 'available'),
-  -- Suite

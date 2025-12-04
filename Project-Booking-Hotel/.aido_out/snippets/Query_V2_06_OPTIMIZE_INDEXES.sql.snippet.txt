@@ -1,0 +1,38 @@
+// snippet: Query_V2\06_OPTIMIZE_INDEXES.sql
+
+-- =====================================
+-- 06_OPTIMIZE_INDEXES.SQL
+-- Optimize query performance with strategic indexes
+-- =====================================
+
+-- Booking query optimization
+create index if not exists idx_bookings_status_created on public.bookings(status, created_at desc);
+create index if not exists idx_bookings_check_in on public.bookings(check_in);
+create index if not exists idx_bookings_check_out on public.bookings(check_out);
+create index if not exists idx_bookings_room_check on public.bookings(room_id, check_in, check_out);
+
+-- Room availability search optimization
+create index if not exists idx_rooms_status_type on public.rooms(status, room_type_id);
+
+-- Price rules for date range queries
+create index if not exists idx_price_rules_dates on public.price_rules(start_date, end_date) where is_active = true;
+create index if not exists idx_price_rules_room_type on public.price_rules(room_type_id, rule_type) where is_active = true;
+
+-- Promotions active search
+create index if not exists idx_promotions_active_date on public.promotions(is_active, start_date, end_date);
+
+-- Restaurant & Spa bookings
+create index if not exists idx_restaurant_bookings_user on public.restaurant_bookings(user_id, created_at desc);
+create index if not exists idx_restaurant_bookings_status on public.restaurant_bookings(status, created_at desc);
+create index if not exists idx_restaurant_bookings_date on public.restaurant_bookings(reservation_at);
+
+create index if not exists idx_spa_bookings_user on public.spa_bookings(user_id, created_at desc);
+create index if not exists idx_spa_bookings_status on public.spa_bookings(status, created_at desc);
+create index if not exists idx_spa_bookings_date on public.spa_bookings(appointment_at);
+
+-- Review search optimization
+create index if not exists idx_room_reviews_room_type on public.room_reviews(room_type_id, rating);
+create index if not exists idx_room_reviews_user_stay on public.room_reviews(user_id, stay_date desc);
+
+-- Audit logs (if exists)
+create index if not exists idx_audit_logs_user_action on public.audit_logs(user_id, action, created_at desc) where exists (select 1 from pg_tables where tablename = 'audit_logs');

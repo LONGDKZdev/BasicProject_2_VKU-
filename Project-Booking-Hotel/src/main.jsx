@@ -1,5 +1,5 @@
 import { RoomContext } from './context/RoomContext';
-import { AuthContext } from './context/AuthContext';
+import { SimpleAuthContext } from './context/SimpleAuthContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { BookingProvider } from './context/BookingContext';
 import ReactDOM from 'react-dom/client'
@@ -12,7 +12,7 @@ ReactDOM
   .createRoot(document.getElementById('root'))
   .render(
     <LanguageProvider>
-      <AuthContext>
+      <SimpleAuthContext>
         <RoomContext>
           <BookingProvider>
             <React.StrictMode>
@@ -20,6 +20,6 @@ ReactDOM
             </React.StrictMode>
           </BookingProvider>
         </RoomContext>
-      </AuthContext>
+      </SimpleAuthContext>
     </LanguageProvider>,
   )

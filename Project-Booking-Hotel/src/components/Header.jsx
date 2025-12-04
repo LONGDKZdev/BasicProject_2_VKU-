@@ -1,17 +1,18 @@
 import { useRoomContext } from "../context/RoomContext";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/SimpleAuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FaUser, FaSignOutAlt, FaSignInAlt, FaUserTie, FaBars, FaTimes } from "react-icons/fa";
-import { STATIC_ASSETS } from "../utils/assetUrls";
+import { FaUser, FaSignOutAlt, FaSignInAlt } from "react-icons/fa";
+
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
 
 const Header = () => {
   const { resetRoomFilterData } = useRoomContext();
-  const { user, signOut, isAuthenticated, isAdmin } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
   const [header, setHeader] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -35,16 +36,9 @@ const Header = () => {
     { label: "Contact", path: "/contact" },
   ];
 
-  const handleLogout = async () => {
-    try {
-      const result = await signOut();
-      if (result.success) {
-        setMobileMenuOpen(false);
-        navigate("/", { replace: true });
-      }
-    } catch (err) {
-      console.error("Logout error:", err);
-    }
+  const handleLogout = () => {
+    logout();
+    navigate("/");
   };
 
   const avatarLetter = useMemo(() => {
@@ -53,193 +47,112 @@ const Header = () => {
     return source.charAt(0).toUpperCase();
   }, [user]);
 
-  const isAuthenticated_check = isAuthenticated();
-  const isAdmin_check = isAdmin();
-
   return (
     <header
       className={`fixed z-50 w-full transition-all duration-300 
       ${header ? "bg-white py-6 shadow-lg" : "bg-transparent py-8"}`}
     >
-      <div className="container mx-auto flex items-center lg:justify-between gap-y-6 lg:gap-y-0 px-4 lg:px-0">
-        {/* Logo */}
-        <Link to="/" onClick={() => { resetRoomFilterData(); setMobileMenuOpen(false); }}>
+      <div className="container mx-auto flex flex-col lg:flex-row items-center lg:justify-between gap-y-6 lg:gap-y-0">
+        <Link to="/" onClick={resetRoomFilterData}>
           {header ? (
-            <img 
-              src={STATIC_ASSETS.logoDark} 
-              alt="logo" 
-              className="w-[160px] h-auto"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.parentElement.textContent = 'ADINA';
-              }}
-            />
+            <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[160px]" />
           ) : (
-            <img 
-              src={STATIC_ASSETS.logoLight} 
-              alt="logo" 
-              className="w-[160px] h-auto"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.parentElement.textContent = 'ADINA';
-              }}
-            />
+            <img src={`${STORAGE_URL}/logo-white.svg`} alt="logo" className="w-[160px]" />
           )}
         </Link>
 
-        {/* Mobile Menu Button */}
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden ml-auto text-2xl"
+        <nav
+          className={`${header ? "text-primary" : "text-white"}
+        flex gap-x-4 lg:gap-x-8 font-tertiary tracking-[3px] text-[15px] items-center uppercase`}
         >
-          {mobileMenuOpen ? <FaTimes /> : <FaBars />}
-        </button>
-
-        {/* Navigation - Desktop */}
-        <nav className="hidden lg:flex items-center gap-8">
-          {navLinks.map((link) => (
+          {navLinks.map(({ label, path }) => (
             <Link
-              key={link.path}
-              to={link.path}
-              onClick={resetRoomFilterData}
-              className="text-gray-700 hover:text-amber-600 font-medium transition"
+              to={path}
+              className="transition hover:text-accent"
+              key={label}
             >
-              {link.label}
+              {label}
             </Link>
           ))}
-        </nav>
 
-        {/* User Section - Desktop */}
-        <div className="hidden lg:flex items-center gap-4">
-          {isAuthenticated_check ? (
-            <div className="flex items-center gap-4">
-              {/* Admin Badge */}
-              {isAdmin_check && (
-                <Link
-                  to="/admin"
-                  className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold hover:bg-red-200 transition"
+          <div className="flex items-center gap-3 ml-4 pl-4 border-l border-current/20">
+            {isAuthenticated() ? (
+              <>
+                <div
+                  className={`flex items-center gap-3 text-sm ${
+                    header ? "text-primary" : "text-white"
+                  }`}
                 >
-                  <FaUserTie /> Admin
-                </Link>
-              )}
-
-              {/* User Avatar */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
-                  {avatarLetter}
+                  <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center uppercase font-semibold text-accent border border-accent/40">
+                    {user?.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt={user.name}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      avatarLetter || <FaUser />
+                    )}
+                  </div>
+                  <span className="hidden sm:inline font-semibold">
+                    {user?.name || user?.email?.split("@")[0]}
+                  </span>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-800">{user?.name || user?.email}</span>
-                  <span className="text-xs text-gray-500">{user?.role}</span>
-                </div>
-              </div>
-
-              {/* Dropdown Menu */}
-              <div className="relative group">
-                <button className="text-gray-700 hover:text-amber-600 transition">
-                  ⋮
+                {user?.role !== "admin" && (
+                  <Link
+                    to="/account"
+                    className={`transition hover:text-accent flex items-center gap-2 text-sm ${
+                      header ? "text-primary" : "text-white"
+                    }`}
+                  >
+                    <span className="hidden sm:inline">Dashboard</span>
+                  </Link>
+                )}
+                {user?.role === "admin" && (
+                  <Link
+                    to="/admin"
+                    className={`transition hover:text-accent flex items-center gap-2 text-sm ${
+                      header ? "text-primary" : "text-white"
+                    }`}
+                  >
+                    <span className="hidden sm:inline">Admin</span>
+                  </Link>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className={`transition hover:text-accent flex items-center gap-2 text-sm ${
+                    header ? "text-primary" : "text-white"
+                  }`}
+                  title="Sign Out"
+                >
+                  <FaSignOutAlt />
+                  <span className="hidden sm:inline">Sign Out</span>
                 </button>
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition pointer-events-none group-hover:pointer-events-auto">
-                  <Link
-                    to="/account"
-                    className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-600"
-                  >
-                    <FaUser className="inline mr-2" /> My Account
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full text-left px-4 py-2 text-gray-700 hover:bg-red-50 hover:text-red-600 border-t"
-                  >
-                    <FaSignOutAlt className="inline mr-2" /> Logout
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <Link
-                to="/login"
-                className="flex items-center gap-2 px-4 py-2 text-amber-600 hover:text-amber-700 font-semibold transition"
-              >
-                <FaSignInAlt /> Login
-              </Link>
-              <Link
-                to="/register"
-                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition font-semibold"
-              >
-                Register
-              </Link>
-            </div>
-          )}
-        </div>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/register"
+                  className={`transition hover:text-accent flex items-center gap-2 text-sm ${
+                    header ? "text-primary" : "text-white"
+                  }`}
+                >
+                  <span className="hidden sm:inline">Sign Up</span>
+                </Link>
+                <Link
+                  to="/login"
+                  className={`transition hover:text-accent flex items-center gap-2 text-sm ${
+                    header ? "text-primary" : "text-white"
+                  }`}
+                >
+                  <FaSignInAlt />
+                  <span className="hidden sm:inline">Sign In</span>
+                </Link>
+              </>
+            )}
+          </div>
+        </nav>
       </div>
-
-      {/* Mobile Navigation Menu */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t border-gray-200 mt-4">
-          <nav className="container mx-auto px-4 py-4 space-y-3">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                onClick={() => {
-                  resetRoomFilterData();
-                  setMobileMenuOpen(false);
-                }}
-                className="block text-gray-700 hover:text-amber-600 font-medium transition py-2"
-              >
-                {link.label}
-              </Link>
-            ))}
-
-            <div className="border-t border-gray-200 pt-3 mt-3">
-              {isAuthenticated_check ? (
-                <>
-                  {isAdmin_check && (
-                    <Link
-                      to="/admin"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="block text-red-700 font-semibold py-2 mb-2"
-                    >
-                      <FaUserTie className="inline mr-2" /> Admin Panel
-                    </Link>
-                  )}
-                  <Link
-                    to="/account"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block text-gray-700 hover:text-amber-600 font-medium transition py-2"
-                  >
-                    <FaUser className="inline mr-2" /> My Account
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full text-left text-gray-700 hover:text-red-600 font-medium transition py-2"
-                  >
-                    <FaSignOutAlt className="inline mr-2" /> Logout
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link
-                    to="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block text-amber-600 hover:text-amber-700 font-semibold transition py-2"
-                  >
-                    <FaSignInAlt className="inline mr-2" /> Login
-                  </Link>
-                  <Link
-                    to="/register"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-center font-semibold mt-2"
-                  >
-                    Register
-                  </Link>
-                </>
-              )}
-            </div>
-          </nav>
-        </div>
-      )}
     </header>
   );
 };

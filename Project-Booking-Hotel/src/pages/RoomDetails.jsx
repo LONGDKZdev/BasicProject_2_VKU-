@@ -1,352 +1,510 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FaStar, FaMapMarkerAlt, FaUsers, FaRuler, FaCheck, FaTimes, FaArrowLeft, FaPhone, FaEnvelope } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
-import { useRoomGallery } from '../utils/imageHelpers';
-import { supabase } from '../utils/supabaseClient';
-import Toast from '../components/Toast';
+import { ScrollToTop, Toast } from '../components';
+import QRPayment from '../components/QRPayment';
+import Invoice from '../components/Invoice';
+import { useRoomContext } from '../context/RoomContext';
+import { useAuth } from '../context/SimpleAuthContext';
+import { hotelRules } from '../constants/data';
+import { useParams } from 'react-router-dom';
+import { FaCheck, FaStar } from 'react-icons/fa';
+import { useMemo, useState } from 'react';
+
+// Placeholder image - will be replaced by Supabase Storage URL
+const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600'%3E%3Crect fill='%23ddd' width='800' height='600'/%3E%3Ctext x='50%' y='50%' font-size='24' fill='%23999' text-anchor='middle' dy='.3em'%3ELoading image...%3C/text%3E%3C/svg%3E";
+
+const createLocalId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Date.now().toString();
+};
 
 const RoomDetails = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
-  const [room, setRoom] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const {
+    allRooms,
+    bookRoom,
+    confirmBookingPayment,
+    hasUserBookedRoom,
+    addReview,
+    calculatePricingForRoom,
+  } = useRoomContext();
+  const { user, isAuthenticated } = useAuth();
+
+  // Support both numeric IDs (legacy) and UUID strings (new)
+  const room = allRooms.find(roomItem => 
+    roomItem.id === id || roomItem.id === Number(id)
+  );
+
+  const [reservation, setReservation] = useState({
+    checkIn: '',
+    checkOut: '',
+    adults: 2,
+    kids: 0,
+    note: '',
+    promoCode: '', // New field for promotion code
+    guestName: '', // For guest bookings
+    guestEmail: '', // For guest bookings
+    guestPhone: '', // For guest bookings
+  });
+  const [reviewForm, setReviewForm] = useState({
+    rating: 5,
+    comment: '',
+  });
   const [toast, setToast] = useState(null);
-  const [selectedImage, setSelectedImage] = useState(0);
-  const [reviews, setReviews] = useState([]);
-  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [showQRPayment, setShowQRPayment] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [currentBooking, setCurrentBooking] = useState(null);
 
-  const { gallery } = useRoomGallery(room?.room_type_id);
+  const maxGuests = room?.maxPerson || 1;
 
-  // Fetch room details
-  useEffect(() => {
-    const fetchRoom = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('rooms')
-          .select(`
-            *,
-            room_types:room_type_id (*)
-          `)
-          .eq('id', id)
-          .single();
+  const nights = useMemo(() => {
+    if (!reservation.checkIn || !reservation.checkOut) return 1;
+    const start = new Date(reservation.checkIn);
+    const end = new Date(reservation.checkOut);
+    const diff = end.getTime() - start.getTime();
+    const days = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    return Number.isFinite(days) ? days : 1;
+  }, [reservation.checkIn, reservation.checkOut]);
 
-        if (error) throw error;
-        if (!data) throw new Error('Room not found');
-
-        setRoom(data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching room:', err);
-        setError(err.message || 'Failed to load room details');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (id) {
-      fetchRoom();
-    }
-  }, [id]);
-
-  // Fetch reviews
-  useEffect(() => {
-    const fetchReviews = async () => {
-      if (!room?.room_type_id) return;
-
-      try {
-        setReviewsLoading(true);
-        const { data, error } = await supabase
-          .from('room_reviews')
-          .select('*')
-          .eq('room_type_id', room.room_type_id)
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (error) throw error;
-        setReviews(data || []);
-      } catch (err) {
-        console.error('Error fetching reviews:', err);
-      } finally {
-        setReviewsLoading(false);
-      }
-    };
-
-    fetchReviews();
-  }, [room?.room_type_id]);
-
-  const handleBooking = () => {
-    if (!isAuthenticated()) {
-      setToast({
-        message: 'Please login to book a room',
-        type: 'info',
-        duration: 3000,
-      });
-      navigate('/login', { state: { from: { pathname: `/room/${id}` } } });
-      return;
-    }
-
-    // Redirect to booking page or modal
-    navigate('/rooms', { state: { selectedRoomId: id } });
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading room details...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Error</h1>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={() => navigate('/rooms')}
-            className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition"
-          >
-            Back to Rooms
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const averageRating = useMemo(() => {
+    if (!room?.reviews?.length) return null;
+    const score = room.reviews.reduce((sum, review) => sum + review.rating, 0) / room.reviews.length;
+    return score.toFixed(1);
+  }, [room]);
 
   if (!room) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800">Room not found</h1>
-          <Link to="/rooms" className="text-amber-600 hover:underline mt-4">
-            Back to Rooms
-          </Link>
-        </div>
-      </div>
+      <section className='min-h-screen flex items-center justify-center'>
+        <p className='text-xl text-primary/70'>Không tìm thấy phòng phù hợp.</p>
+      </section>
     );
   }
 
-  const amenities = room.room_types?.facilities || [];
-  const avgRating = reviews.length > 0 
-    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-    : 4.0;
+  const totalGuests = reservation.adults + reservation.kids;
+  const pricingPreview = useMemo(() => {
+    if (!room || !reservation.checkIn || !reservation.checkOut) return null;
+    return calculatePricingForRoom(room, reservation.checkIn, reservation.checkOut);
+  }, [room, reservation.checkIn, reservation.checkOut, calculatePricingForRoom]);
+  const totalPrice = pricingPreview?.total ?? nights * room.price;
+  const canReview = isAuthenticated() && hasUserBookedRoom(user?.id, room.id);
+
+  const showToast = (payload) => {
+    setToast(payload);
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleReservationChange = (field, value) => {
+    setReservation(prev => ({ ...prev, [field]: value }));
+  };
+
+  const validateBooking = () => {
+    if (!isAuthenticated()) {
+      showToast({ type: 'info', message: 'Please sign in to book this room.' });
+      return false;
+    }
+    if (!reservation.checkIn || !reservation.checkOut) {
+      showToast({ type: 'error', message: 'Select both check-in and check-out dates.' });
+      return false;
+    }
+    if (new Date(reservation.checkOut) <= new Date(reservation.checkIn)) {
+      showToast({ type: 'error', message: 'Check-out must be after check-in.' });
+      return false;
+    }
+    if (totalGuests > maxGuests) {
+      showToast({ type: 'error', message: `This category hosts up to ${maxGuests} guests.` });
+      return false;
+    }
+    return true;
+  };
+
+  const handleBooking = (e) => {
+    e.preventDefault();
+    if (!validateBooking()) return;
+
+    const result = bookRoom({
+      roomId: room.id,
+      roomName: room.name,
+      userId: user?.id,
+      userName: user?.name || user?.email?.split('@')[0],
+      userEmail: user?.email,
+      checkIn: reservation.checkIn,
+      checkOut: reservation.checkOut,
+      adults: reservation.adults,
+      kids: reservation.kids,
+      note: reservation.note,
+      promoCode: reservation.promoCode, // Truyền promo code
+    });
+
+    if (result?.success) {
+      setCurrentBooking(result.booking);
+      setShowQRPayment(true);
+    } else {
+      showToast({
+        type: 'error',
+        message: result?.error || 'Unable to complete booking. Please try another selection.',
+      });
+    }
+  };
+
+  const handlePaymentSuccess = (paymentData) => {
+    if (!currentBooking) return;
+    
+    const confirmedBooking = confirmBookingPayment(currentBooking.id, paymentData);
+    setCurrentBooking(confirmedBooking);
+    setShowQRPayment(false);
+    setShowInvoice(true);
+    showToast({
+      type: 'success',
+      message: 'Payment successful! Your booking is confirmed.',
+    });
+    setReservation(prev => ({ ...prev, note: '' }));
+  };
+
+  const handleCloseQRPayment = () => {
+    setShowQRPayment(false);
+    setCurrentBooking(null);
+  };
+
+  const handleReviewSubmit = (e) => {
+    e.preventDefault();
+    if (!isAuthenticated()) {
+      showToast({ type: 'info', message: 'Sign in to share your review.' });
+      return;
+    }
+    if (!canReview) {
+      showToast({ type: 'error', message: 'Only confirmed guests can rate this room.' });
+      return;
+    }
+    if (!reviewForm.comment.trim()) {
+      showToast({ type: 'error', message: 'Please add your thoughts before submitting.' });
+      return;
+    }
+
+    addReview(room.id, {
+      id: createLocalId(),
+      userId: user?.id,
+      userName: user?.name || user?.email?.split('@')[0],
+      rating: reviewForm.rating,
+      comment: reviewForm.comment,
+      createdAt: new Date().toISOString(),
+    });
+
+    showToast({ type: 'success', message: 'Thank you for sharing your experience!' });
+    setReviewForm({ rating: 5, comment: '' });
+  };
 
   return (
-    <div className="min-h-screen bg-white">
-      <Toast message={toast?.message} type={toast?.type} duration={toast?.duration} />
+    <section>
+      <ScrollToTop />
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* Header */}
-      <div className="bg-gray-50 border-b border-gray-200">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <button
-            onClick={() => navigate('/rooms')}
-            className="flex items-center gap-2 text-amber-600 hover:text-amber-700 font-semibold transition"
-          >
-            <FaArrowLeft /> Back to Rooms
-          </button>
-        </div>
+      <div className='bg-room h-[560px] relative flex justify-center items-center bg-cover bg-center'>
+        <div className='absolute w-full h-full bg-black/70' />
+        <h1 className='text-5xl lg:text-6xl text-white z-20 font-primary text-center'>{room.name} Details</h1>
       </div>
 
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Image Gallery - Left Side */}
-          <div className="lg:col-span-2">
-            {/* Main Image */}
-            <div className="mb-6">
-              <img
-                src={gallery[selectedImage]?.full || gallery[0]?.full}
-                alt={room.name}
-                className="w-full h-96 object-cover rounded-lg shadow-lg"
-                onError={(e) => {
-                  e.target.style.backgroundColor = '#e5e7eb';
-                }}
-              />
-            </div>
+      <div className='container mx-auto'>
+        <div className='flex flex-col lg:flex-row lg:gap-x-8 h-full py-24'>
+          <div className='w-full lg:w-[60%] h-full text-justify'>
+            <h2 className='h2'>{room.name}</h2>
+            <p className='mb-8 text-primary/80'>{room.description}</p>
+            <img
+              className='mb-8'
+              src={room.imageLg || room.image || PLACEHOLDER_IMG}
+              alt={room.name}
+              onError={(e) => {
+                console.warn('❌ Large image failed to load from Supabase:', room.imageLg);
+                e.target.src = PLACEHOLDER_IMG;
+              }}
+            />
 
-            {/* Thumbnail Gallery */}
-            {gallery.length > 1 && (
-              <div className="grid grid-cols-4 gap-4 mb-8">
-                {gallery.map((img, idx) => (
-                  <button
-                    key={img.id}
-                    onClick={() => setSelectedImage(idx)}
-                    className={`relative overflow-hidden rounded-lg ${
-                      selectedImage === idx ? 'ring-2 ring-amber-600' : 'ring-1 ring-gray-200'
-                    }`}
-                  >
-                    <img
-                      src={img.thumbnail}
-                      alt={`Room view ${idx + 1}`}
-                      className="w-full h-24 object-cover hover:scale-110 transition-transform"
-                      onError={(e) => {
-                        e.target.style.backgroundColor = '#f3f4f6';
-                      }}
-                    />
-                  </button>
+            <div className='flex items-center gap-4 mb-10'>
+              <div className='text-4xl font-primary text-accent'>
+                {averageRating ? averageRating : 'N/A'}
+              </div>
+              <div className='flex text-accent'>
+                {[...Array(5)].map((_, index) => (
+                  <FaStar
+                    key={index}
+                    className={`text-2xl ${averageRating && index < Math.round(averageRating) ? 'text-accent' : 'text-accent/20'}`}
+                  />
                 ))}
               </div>
-            )}
+              <p className='text-sm text-primary/70'>
+                {room.reviews?.length ? `${room.reviews.length} reviews` : 'Be the first to review this stay'}
+              </p>
+            </div>
 
-            {/* Room Details */}
-            <div className="bg-gray-50 rounded-lg p-6 mb-8">
-              <h1 className="text-4xl font-bold text-gray-800 mb-4">{room.name}</h1>
-              
-              <div className="flex items-center gap-4 mb-6">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <FaStar
-                      key={i}
-                      className={`${i < Math.floor(avgRating) ? 'text-amber-400' : 'text-gray-300'}`}
-                      size={18}
-                    />
-                  ))}
-                </div>
-                <span className="text-gray-600">{avgRating} ({reviews.length} reviews)</span>
-              </div>
 
-              <p className="text-gray-600 text-lg mb-6">{room.description || room.room_types?.description}</p>
+            <div className='mt-12'>
+              <h3 className='h3 mb-3'>Details</h3>
+              <p className='mb-12'>
+                Lorem ipsum dolor sit amet consectetur adipisicing elit. Blanditiis accusantium sapiente quas quos explicabo, odit nostrum? Reiciendis illum dolor eos dicta. Illum vero at hic nostrum sint et quod porro.
+              </p>
 
-              {/* Room Specs */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-                <div>
-                  <FaRuler className="text-amber-600 text-2xl mb-2" />
-                  <p className="text-sm text-gray-500">Size</p>
-                  <p className="font-bold text-lg text-gray-800">{room.size || 35}m²</p>
-                </div>
-                <div>
-                  <FaUsers className="text-amber-600 text-2xl mb-2" />
-                  <p className="text-sm text-gray-500">Max Guests</p>
-                  <p className="font-bold text-lg text-gray-800">{room.room_types?.max_person || 2}</p>
-                </div>
-                <div>
-                  <FaMapMarkerAlt className="text-amber-600 text-2xl mb-2" />
-                  <p className="text-sm text-gray-500">Floor</p>
-                  <p className="font-bold text-lg text-gray-800">{room.floor || 1}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-2">Room No</p>
-                  <p className="font-bold text-lg text-gray-800">{room.room_no}</p>
-                </div>
+              {/* icons grid */}
+              <div className="grid grid-cols-3 gap-6 mb-12">
+                {room.facilities && room.facilities.length > 0 ? (
+                  room.facilities.map((item, index) => (
+                    <div key={index} className='flex items-center gap-x-3 flex-1'>
+                      <div className='text-3xl text-accent'>✓</div>
+                      <div className='text-base'>{typeof item === 'string' ? item : item.name}</div>
+                    </div>
+                  ))
+                ) : (
+                  <p className='text-primary/70 col-span-3'>No facilities information available</p>
+                )}
               </div>
             </div>
 
-            {/* Amenities */}
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Amenities</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {amenities.map((amenity, idx) => (
-                  <div key={idx} className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-                    <FaCheck className="text-amber-600 text-lg flex-shrink-0" />
-                    <span className="text-gray-700">{amenity}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Reviews Section */}
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Guest Reviews</h2>
-              {reviewsLoading ? (
-                <p className="text-gray-600">Loading reviews...</p>
-              ) : reviews.length === 0 ? (
-                <p className="text-gray-600 bg-gray-50 p-4 rounded-lg">No reviews yet. Be the first to review!</p>
-              ) : (
-                <div className="space-y-4">
-                  {reviews.map((review) => (
-                    <div key={review.id} className="border-l-4 border-amber-500 pl-4 py-3 bg-gray-50 rounded-r">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-gray-800">{review.user_name || 'Anonymous'}</h3>
-                        <div className="flex gap-1">
-                          {[...Array(5)].map((_, i) => (
+            <div className='space-y-6'>
+              <h3 className='h3'>Guest impressions</h3>
+              <div className='space-y-4'>
+                {room.reviews?.length ? (
+                  room.reviews.map(review => (
+                    <div key={review.id} className='border border-accent/10 p-5 bg-white shadow-sm'>
+                      <div className='flex justify-between items-center mb-2'>
+                        <div>
+                          <p className='font-semibold'>{review.userName}</p>
+                          <span className='text-xs text-primary/60'>
+                            {review.stayDate ||
+                              (review.createdAt
+                                ? new Date(review.createdAt).toLocaleDateString('vi-VN')
+                                : 'Khách ẩn danh')}
+                          </span>
+                        </div>
+                        <div className='flex text-accent'>
+                          {[...Array(5)].map((_, index) => (
                             <FaStar
-                              key={i}
-                              className={`${i < review.rating ? 'text-amber-400' : 'text-gray-300'}`}
-                              size={14}
+                              key={index}
+                              className={`${index < review.rating ? 'text-accent' : 'text-accent/20'}`}
                             />
                           ))}
                         </div>
                       </div>
-                      <p className="text-gray-600 text-sm">{review.comment}</p>
-                      <p className="text-gray-400 text-xs mt-2">
-                        {new Date(review.created_at).toLocaleDateString()}
-                      </p>
+                      <p className='text-primary/80 leading-relaxed'>{review.comment}</p>
                     </div>
-                  ))}
+                  ))
+                ) : (
+                  <p className='text-primary/70'>No reviews for this room yet.</p>
+                )}
+              </div>
+
+              <div className='mt-8'>
+                <h4 className='font-primary text-2xl mb-4'>Share your stay experience</h4>
+                {canReview ? (
+                  <form onSubmit={handleReviewSubmit} className='space-y-4'>
+                    <div>
+                      <label className='block text-sm font-semibold mb-2'>Rating</label>
+                      <select
+                        value={reviewForm.rating}
+                        onChange={(e) => setReviewForm(prev => ({ ...prev, rating: Number(e.target.value) }))}
+                        className='border border-accent/20 px-4 py-3 w-full focus:outline-none focus:border-accent'
+                      >
+                        {[5, 4, 3, 2, 1].map(score => (
+                          <option key={score} value={score}>
+                            {score} sao
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className='block text-sm font-semibold mb-2'>Your thoughts</label>
+                      <textarea
+                        value={reviewForm.comment}
+                        onChange={(e) => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
+                        rows={4}
+                        className='border border-accent/20 px-4 py-3 w-full focus:outline-none focus:border-accent resize-none'
+                        placeholder='What delighted you the most during your stay?'
+                      />
+                    </div>
+                    <button type='submit' className='btn btn-secondary'>
+                      Submit review
+                    </button>
+                  </form>
+                ) : (
+                  <p className='text-sm text-primary/70'>
+                    Sign in and complete a stay in this room to unlock review privileges.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className='w-full lg:w-[40%] h-full'>
+            <div className='py-8 px-6 bg-accent/20 mb-12'>
+              <h3 className='h3 mb-6'>Your Reservation</h3>
+              <div className='flex justify-between items-center mb-6'>
+                <div>
+                  <p className='text-sm text-primary/60'>Rate per night</p>
+                  <p className='text-3xl font-primary text-accent'>${room.price}</p>
+                </div>
+                <div className='text-sm text-primary/60 text-right'>
+                  <p>Up to {maxGuests} guests</p>
+                  <p>{nights} night(s) • ${totalPrice}</p>
+                </div>
+              </div>
+
+              <form className='space-y-4' onSubmit={handleBooking}>
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                  <div>
+                    <label className='text-xs uppercase tracking-[2px] text-primary/60'>Check-in</label>
+                    <input
+                      type='date'
+                      value={reservation.checkIn}
+                      onChange={(e) => handleReservationChange('checkIn', e.target.value)}
+                      className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
+                    />
+                  </div>
+                  <div>
+                    <label className='text-xs uppercase tracking-[2px] text-primary/60'>Check-out</label>
+                    <input
+                      type='date'
+                      value={reservation.checkOut}
+                      onChange={(e) => handleReservationChange('checkOut', e.target.value)}
+                      className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
+                    />
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                  <div>
+                    <label className='text-xs uppercase tracking-[2px] text-primary/60 mb-2 block'>Adults</label>
+                    <select
+                      value={reservation.adults}
+                      onChange={(e) => {
+                        const nextAdults = Number(e.target.value);
+                        const spare = Math.max(0, maxGuests - nextAdults);
+                        const nextKids = Math.min(reservation.kids, spare);
+                        setReservation(prev => ({ ...prev, adults: nextAdults, kids: nextKids }));
+                      }}
+                      className='w-full border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent bg-white cursor-pointer'
+                    >
+                      {Array.from({ length: maxGuests }, (_, idx) => idx + 1).map(value => (
+                        <option key={value} value={value}>{value} {value === 1 ? 'Adult' : 'Adults'}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className='text-xs uppercase tracking-[2px] text-primary/60 mb-2 block'>Kids</label>
+                    <select
+                      value={reservation.kids}
+                      onChange={(e) => {
+                        const selectedKids = Number(e.target.value);
+                        const total = reservation.adults + selectedKids;
+                        if (total <= maxGuests) {
+                          handleReservationChange('kids', selectedKids);
+                        } else {
+                          const maxKids = Math.max(0, maxGuests - reservation.adults);
+                          handleReservationChange('kids', maxKids);
+                          showToast({ 
+                            type: 'error', 
+                            message: `Maximum ${maxGuests} guests allowed. Kids adjusted to ${maxKids}.` 
+                          });
+                        }
+                      }}
+                      className='w-full border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent bg-white cursor-pointer'
+                      disabled={reservation.adults >= maxGuests}
+                    >
+                      {Array.from({ length: Math.max(0, maxGuests - reservation.adults) + 1 }, (_, idx) => idx).map(value => (
+                        <option key={value} value={value}>
+                          {value === 0 ? 'No Kids' : `${value} ${value === 1 ? 'Kid' : 'Kids'}`}
+                        </option>
+                      ))}
+                    </select>
+                    {reservation.adults >= maxGuests && (
+                      <p className='text-xs text-primary/50 mt-1'>Maximum guests reached</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className='text-xs uppercase tracking-[2px] text-primary/60'>Promo Code (Optional)</label>
+                  <input
+                    type='text'
+                    value={reservation.promoCode}
+                    onChange={(e) => handleReservationChange('promoCode', e.target.value)}
+                    className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
+                    placeholder='E.g. WELCOME25'
+                  />
+                </div>
+                <div>
+                  <label className='text-xs uppercase tracking-[2px] text-primary/60'>Special requests</label>
+                  <textarea
+                    rows={3}
+                    value={reservation.note}
+                    onChange={(e) => handleReservationChange('note', e.target.value)}
+                    className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent resize-none'
+                    placeholder='E.g. birthday setup, dietary requirements...'
+                  />
+                </div>
+
+                <button type='submit' className='btn btn-primary w-full uppercase tracking-[4px]'>
+                  Confirm reservation
+                </button>
+              </form>
+
+              {pricingPreview?.breakdown?.length > 0 && (
+                <div className='mt-8 bg-white border border-accent/20 rounded'>
+                  <div className='px-4 py-3 border-b border-accent/10'>
+                    <p className='text-sm font-semibold text-primary'>Nightly breakdown</p>
+                  </div>
+                  <ul className='divide-y divide-accent/10'>
+                    {pricingPreview.breakdown.map((night) => (
+                      <li key={night.date} className='px-4 py-3 flex items-center justify-between text-sm'>
+                        <div>
+                          <p className='font-semibold'>{night.date}</p>
+                          <p className='text-primary/60'>{night.label}</p>
+                        </div>
+                        <p className='font-primary text-lg text-accent'>${night.rate}</p>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Booking Card - Right Side */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24 bg-white border-2 border-gray-200 rounded-lg p-6 shadow-lg">
-              {/* Price */}
-              <div className="mb-6 pb-6 border-b border-gray-200">
-                <p className="text-gray-600 text-sm mb-1">Price per night</p>
-                <p className="text-4xl font-bold text-amber-600">
-                  ${room.price || room.room_types?.base_price || 115}
-                </p>
-              </div>
+            <div>
+              <h3 className='h3'>Hotel Rules</h3>
+              <p className='mb-6 text-justify'>
+                Lorem ipsum dolor sit amet consectetur adipisicing elit. Commodi dolores iure fugiat eligendi illo est, aperiam quasi distinctio necessitatibus suscipit nemo provident eaque voluptas earum.
+              </p>
 
-              {/* Room Type */}
-              <div className="mb-6 pb-6 border-b border-gray-200">
-                <p className="text-sm text-gray-500 uppercase tracking-wide">Room Type</p>
-                <p className="text-xl font-bold text-gray-800">{room.room_types?.name}</p>
-              </div>
-
-              {/* Booking Button */}
-              <button
-                onClick={handleBooking}
-                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold py-3 rounded-lg transition mb-4"
-              >
-                Book Now
-              </button>
-
-              {/* Additional Info */}
-              <div className="space-y-3 text-sm text-gray-600 pt-4 border-t border-gray-200">
-                <div className="flex items-center gap-2">
-                  <FaCheck className="text-green-500" />
-                  <span>Free cancellation up to 48h before</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <FaCheck className="text-green-500" />
-                  <span>No prepayment needed</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <FaCheck className="text-green-500" />
-                  <span>Instant confirmation</span>
-                </div>
-              </div>
-
-              {/* Contact Info */}
-              <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
-                <p className="text-sm font-semibold text-gray-800 mb-3">Need help?</p>
-                <a
-                  href="tel:+1234567890"
-                  className="flex items-center gap-2 text-amber-600 hover:text-amber-700 text-sm"
-                >
-                  <FaPhone /> +1 (234) 567-890
-                </a>
-                <a
-                  href="mailto:info@adina.com"
-                  className="flex items-center gap-2 text-amber-600 hover:text-amber-700 text-sm"
-                >
-                  <FaEnvelope /> info@adina.com
-                </a>
-              </div>
+              <ul className='flex flex-col gap-y-4'>
+                {
+                  hotelRules.map(({ rules }, idx) =>
+                    <li key={idx} className='flex items-center gap-x-4'>
+                      <FaCheck className='text-accent' />
+                      {rules}
+                    </li>
+                  )
+                }
+              </ul>
             </div>
+
           </div>
+
         </div>
       </div>
-    </div>
+
+      {showQRPayment && currentBooking && (
+        <QRPayment
+          bookingData={currentBooking}
+          onPaymentSuccess={handlePaymentSuccess}
+          onClose={handleCloseQRPayment}
+          type="room"
+        />
+      )}
+
+      {showInvoice && currentBooking && (
+        <Invoice
+          booking={currentBooking}
+          onClose={() => setShowInvoice(false)}
+          onDownload={() => {
+            showToast({ type: 'success', message: 'PDF downloaded successfully!' });
+          }}
+        />
+      )}
+    </section>
   );
 };
 

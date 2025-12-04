@@ -211,14 +211,19 @@ export const checkRoomAvailability = async (roomId, checkIn, checkOut, excludeBo
   }
 };
 
-export const fetchPriceRules = async (roomTypeId) => {
+export const fetchPriceRules = async (roomTypeId = null) => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('price_rules')
       .select('*')
-      .eq('room_type_id', roomTypeId)
-      .eq('is_active', true)
-      .order('priority', { ascending: true });
+      .eq('is_active', true);
+    
+    // Chỉ filter theo room_type_id nếu có giá trị hợp lệ
+    if (roomTypeId) {
+      query = query.eq('room_type_id', roomTypeId);
+    }
+    
+    const { data, error } = await query.order('priority', { ascending: true });
     if (error) throw error;
     return data || [];
   } catch (err) {

@@ -1,5 +1,5 @@
 -- =====================================
--- 02_INIT_SCHEMA.SQL (UPDATED)
+-- 02_INIT_SCHEMA.SQL
 -- =====================================
 
 create extension if not exists "pgcrypto";
@@ -9,7 +9,6 @@ create type room_status as enum ('available', 'occupied', 'maintenance', 'cleani
 create type booking_status as enum ('pending', 'pending_payment', 'approved', 'rejected', 'confirmed', 'checked_in', 'checked_out', 'modified', 'completed', 'cancelled');
 create type price_rule_type as enum ('weekend', 'holiday', 'seasonal', 'season');
 create type discount_type as enum ('percent', 'fixed');
-create type account_status as enum ('active', 'inactive', 'suspended');
 
 -- ====== FUNCTION UPDATE TIMESTAMP ======
 create or replace function public.trigger_set_timestamp()
@@ -19,49 +18,39 @@ begin
   return new;
 end$$;
 
--- ====== 1. PROFILES (UPDATED: Added status field) ======
-create table if not exists public.profiles (
+-- ====== 1. USERS (BẢNG RIÊNG - KHÔNG DÙNG auth.users) ======
+create table if not exists public.users (
   id uuid primary key default gen_random_uuid(),
   email text unique not null,
+  password_hash text not null,  -- Mật khẩu đã hash (dùng bcrypt hoặc crypto)
   full_name text,
   phone text,
   avatar_url text,
   country text,
   city text,
-  bio text,
   preferences jsonb not null default '[]'::jsonb,
   language text not null default 'en',
   newsletter boolean not null default true,
-  role text not null default 'user', -- 'user', 'admin', 'staff'
-  status account_status not null default 'active', -- NEW: account status
+  bio text,
+  is_admin boolean not null default false,
+  is_email_verified boolean not null default false,
+  email_verification_token text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  last_login timestamptz
 );
-create trigger set_profiles_updated_at before update on public.profiles for each row execute procedure public.trigger_set_timestamp();
+create index if not exists idx_users_email on public.users(email);
+create index if not exists idx_users_is_admin on public.users(is_admin);
+create index if not exists idx_users_email_verification_token on public.users(email_verification_token);
+create trigger set_users_updated_at before update on public.users for each row execute procedure public.trigger_set_timestamp();
 
--- Trigger User
-create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer as $$
-begin
-  insert into public.profiles (id, email, full_name, role, status)
-  values (new.id, new.email, coalesce(new.raw_user_meta_data->>'full_name',''), 'user', 'active');
-  return new;
-end$$;
-create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
-
--- Function Check Admin
+-- Function Check Admin (đơn giản hóa - check từ users)
 create or replace function public.is_admin(uid uuid)
 returns boolean language sql stable as $$
-  select exists(select 1 from public.profiles p where p.id = uid and p.role = 'admin' and p.status = 'active');
+  select coalesce((select is_admin from public.users where id = uid), false);
 $$;
 
--- Function Check Active User
-create or replace function public.is_active_user(uid uuid)
-returns boolean language sql stable as $$
-  select exists(select 1 from public.profiles p where p.id = uid and p.status = 'active');
-$$;
-
--- ====== 2. AMENITIES ======
+-- ====== 3. AMENITIES ======
 create table if not exists public.amenities (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
@@ -69,7 +58,7 @@ create table if not exists public.amenities (
   created_at timestamptz not null default now()
 );
 
--- ====== 3. ROOM TYPES ======
+-- ====== 4. ROOM TYPES ======
 create table if not exists public.room_types (
   id uuid primary key default gen_random_uuid(),
   code text unique not null,
@@ -160,7 +149,7 @@ create table if not exists public.promotions (
 -- ====== 9. BOOKINGS ======
 create table if not exists public.bookings (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id),
+  user_id uuid references public.users(id) on delete set null,
   confirmation_code text not null unique,
   booking_type text not null default 'room',
   status booking_status not null default 'pending_payment',
@@ -204,7 +193,7 @@ create table if not exists public.room_reviews (
   id uuid primary key default gen_random_uuid(),
   room_type_id uuid not null references public.room_types(id) on delete cascade,
   booking_id uuid references public.bookings(id) on delete set null,
-  user_id uuid references auth.users(id),
+  user_id uuid references public.users(id) on delete set null,
   user_name text, user_email text, rating int not null check (rating between 1 and 5),
   comment text, stay_date date,
   created_at timestamptz not null default now()
@@ -222,13 +211,13 @@ create table if not exists public.booking_pricing_breakdown (
 create table if not exists public.booking_events (
   id bigint generated by default as identity primary key,
   booking_id uuid not null references public.bookings(id) on delete cascade,
-  event_type text not null, note text, actor uuid references auth.users(id), meta jsonb,
+  event_type text not null, note text, actor uuid references public.users(id) on delete set null, meta jsonb,
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.restaurant_bookings (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id),
+  user_id uuid references public.users(id) on delete set null,
   confirmation_code text not null unique,
   name text not null, email text not null, phone text,
   reservation_at timestamptz not null, guests int default 1, special_requests text,
@@ -240,7 +229,7 @@ create trigger set_restaurant_bookings_updated_at before update on public.restau
 
 create table if not exists public.spa_bookings (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id),
+  user_id uuid references public.users(id) on delete set null,
   confirmation_code text not null unique,
   name text not null, email text not null, phone text,
   appointment_at timestamptz not null, service_name text not null, service_duration text,
@@ -259,7 +248,7 @@ create table if not exists public.password_reset_requests (
 
 create table if not exists public.audit_logs (
   id bigint generated by default as identity primary key,
-  actor uuid references auth.users(id),
+  actor uuid references public.users(id) on delete set null,
   action text not null, target_table text, target_id text, meta jsonb,
   created_at timestamptz not null default now()
 );

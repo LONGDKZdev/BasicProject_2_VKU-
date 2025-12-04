@@ -3,11 +3,13 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { LogoDark } from '../assets';
 import { FaLock, FaSpinner, FaCheck, FaArrowLeft } from 'react-icons/fa';
 import Toast from '../components/Toast';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SimpleAuthContext';
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
+    email: '',
+    code: '',
     newPassword: '',
     confirmPassword: ''
   });
@@ -16,18 +18,20 @@ const ResetPassword = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
-  const { updatePassword, loading, error: authError } = useAuth();
+  const { resetPasswordWithCode, loading, error: authError } = useAuth();
 
-  // Supabase sends a token in the URL fragment or query param after email click
-  const token = searchParams.get('token') || window.location.hash;
+  // Lấy code và email từ URL query params
+  const codeFromUrl = searchParams.get('code');
+  const emailFromUrl = searchParams.get('email');
 
   useEffect(() => {
-    // If no token, user likely came from ForgotPassword flow or manual access
-    // No need to redirect - they can still access the page
-    if (!token) {
-      console.log('No reset token found in URL. User may need to click email link or request new reset.');
+    if (codeFromUrl) {
+      setFormData(prev => ({ ...prev, code: codeFromUrl }));
     }
-  }, [token]);
+    if (emailFromUrl) {
+      setFormData(prev => ({ ...prev, email: emailFromUrl }));
+    }
+  }, [codeFromUrl, emailFromUrl]);
 
   const handleChange = (e) => {
     setFormData({
@@ -40,9 +44,9 @@ const ResetPassword = () => {
     e.preventDefault();
 
     // Validation
-    if (!formData.newPassword || !formData.confirmPassword) {
+    if (!formData.email || !formData.code || !formData.newPassword || !formData.confirmPassword) {
       setToast({
-        message: 'Please fill in all password fields',
+        message: 'Please fill in all fields',
         type: 'error'
       });
       return;
@@ -64,7 +68,7 @@ const ResetPassword = () => {
       return;
     }
 
-    const result = await updatePassword(formData.newPassword);
+    const result = await resetPasswordWithCode(formData.email, formData.code, formData.newPassword);
     
     if (result.success) {
       setToast({
@@ -106,6 +110,44 @@ const ResetPassword = () => {
 
           {!successMessage ? (
             <form onSubmit={handleSubmit} className="p-8 space-y-5">
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-primary">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                  placeholder="your@email.com"
+                  required
+                  disabled={loading || !!emailFromUrl}
+                />
+              </div>
+
+              {/* Reset Code */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-primary">
+                  Reset Code *
+                </label>
+                <input
+                  type="text"
+                  name="code"
+                  value={formData.code}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all uppercase"
+                  placeholder="ABC123"
+                  required
+                  disabled={loading || !!codeFromUrl}
+                  maxLength="6"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter the 6-character code sent to your email
+                </p>
+              </div>
+
               {/* New Password */}
               <div>
                 <label className="block text-sm font-semibold mb-2 text-primary">

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SimpleAuthContext';
 import { FaEnvelope, FaLock, FaSpinner, FaGoogle, FaFacebook } from 'react-icons/fa';
 import Toast from '../components/Toast';
-import { STATIC_ASSETS } from '../utils/assetUrls';
+
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -12,19 +13,16 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isAdminLogin, setIsAdminLogin] = useState(false);
   const [toast, setToast] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const { signIn, isAuthenticated, loading } = useAuth();
+  
+  const { login, adminLogin, loginWithOAuth, loading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Check if trying to access admin login
   useEffect(() => {
     const isAdmin = location.pathname === '/admin/login' || location.search.includes('admin=true');
     setIsAdminLogin(isAdmin);
   }, [location]);
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated()) {
       const from = location.state?.from?.pathname || (isAdminLogin ? '/admin' : '/');
@@ -35,244 +33,239 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
 
-    // Validation
     if (!email || !password) {
       setError('Please fill in all fields');
-      setIsLoading(false);
       return;
     }
 
-    if (!email.includes('@')) {
-      setError('Please enter a valid email');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      // Call signIn from AuthContext
-      const result = await signIn(email, password);
-
-      if (!result.success) {
-        setError(result.error || 'Login failed. Please try again.');
-        setToast({
-          message: result.error || 'Login failed',
-          type: 'error',
-          duration: 3000,
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Check if user is admin when trying to access admin panel
-      if (isAdminLogin) {
-        // Admin check will be done by ProtectedRoute
-        setToast({
-          message: 'Login successful! Redirecting to dashboard...',
-          type: 'success',
-          duration: 2000,
-        });
-      } else {
-        setToast({
-          message: 'Login successful!',
-          type: 'success',
-          duration: 2000,
-        });
-      }
-
-      // Redirect will be handled by useEffect above
-    } catch (err) {
-      console.error('Login error:', err);
-      setError('An unexpected error occurred');
+    // Chỉ dùng adminLogin khi vào /admin/login
+    // Nếu đăng nhập bình thường, dùng login() và check role sau
+    const result = isAdminLogin 
+      ? await adminLogin(email, password)
+      : await login(email, password);
+    
+    if (result.success) {
       setToast({
-        message: 'An error occurred during login',
-        type: 'error',
-        duration: 3000,
+        message: `Welcome back, ${result.user.name || result.user.email}!`,
+        type: 'success'
       });
-    } finally {
-      setIsLoading(false);
+      setTimeout(() => {
+        // Redirect dựa trên role hoặc path
+        let redirectPath = '/';
+        if (isAdminLogin) {
+          redirectPath = '/admin';
+        } else if (result.user.isAdmin) {
+          // Nếu user là admin nhưng đăng nhập từ /login, có thể redirect đến /admin
+          redirectPath = '/admin';
+        } else {
+          redirectPath = '/';
+        }
+        const from = location.state?.from?.pathname || redirectPath;
+        navigate(from, { replace: true });
+      }, 1500);
+    } else {
+      setError(result.error || 'Login failed');
     }
   };
 
   const handleOAuthLogin = async (provider) => {
-    try {
-      setIsLoading(true);
-      console.log(`OAuth login with ${provider} - Coming soon`);
+    if (isAdminLogin) {
+      setError('OAuth login is not available for admin');
+      return;
+    }
+
+    setError('');
+    const result = await loginWithOAuth(provider);
+    
+    if (result.success) {
       setToast({
-        message: `${provider} login coming soon!`,
-        type: 'info',
-        duration: 2000,
+        message: `Welcome, ${result.user.name || result.user.email}!`,
+        type: 'success'
       });
-    } catch (err) {
-      console.error('OAuth error:', err);
-      setToast({
-        message: `${provider} login failed`,
-        type: 'error',
-        duration: 2000,
-      });
-    } finally {
-      setIsLoading(false);
+      setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 1500);
+    } else {
+      setError(`Failed to login with ${provider}`);
     }
   };
 
-  const isFormValid = email && password;
-  const isSubmitDisabled = !isFormValid || isLoading || loading;
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
-      <Toast message={toast?.message} type={toast?.type} duration={toast?.duration} />
-
-      <div className="w-full max-w-md bg-white rounded-lg shadow-xl p-8">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <img
-            src={STATIC_ASSETS.logoDark}
-            alt="Logo"
-            className="w-32 mx-auto mb-4"
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
-          />
-          <h1 className="text-3xl font-bold text-gray-800">
-            {isAdminLogin ? 'Admin Login' : 'Guest Login'}
-          </h1>
-          <p className="text-gray-500 mt-2">
-            {isAdminLogin ? 'Manage your hotel' : 'Book your perfect stay'}
-          </p>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm font-medium">{error}</p>
-          </div>
-        )}
-
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email Input */}
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">Email Address</label>
-            <div className="relative">
-              <FaEnvelope className="absolute left-4 top-4 text-gray-400" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
-                disabled={isLoading || loading}
-              />
-            </div>
-          </div>
-
-          {/* Password Input */}
-          <div>
-            <label className="block text-gray-700 font-semibold mb-2">Password</label>
-            <div className="relative">
-              <FaLock className="absolute left-4 top-4 text-gray-400" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition"
-                disabled={isLoading || loading}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
-                disabled={isLoading || loading}
-              >
-                {showPassword ? '👁️' : '👁️‍🗨️'}
-              </button>
-            </div>
-          </div>
-
-          {/* Forgot Password Link */}
-          <div className="text-right">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-amber-600 hover:text-amber-700 font-medium transition"
-            >
-              Forgot Password?
-            </Link>
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isSubmitDisabled}
-            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 rounded-lg transition flex items-center justify-center gap-2"
-          >
-            {isLoading || loading ? (
-              <>
-                <FaSpinner className="animate-spin" />
-                Logging in...
-              </>
-            ) : (
-              'Login'
-            )}
-          </button>
-        </form>
-
-        {/* OAuth Divider */}
-        <div className="mt-6 flex items-center gap-4">
-          <div className="flex-1 h-px bg-gray-300"></div>
-          <span className="text-gray-500 text-sm">Or continue with</span>
-          <div className="flex-1 h-px bg-gray-300"></div>
-        </div>
-
-        {/* OAuth Buttons */}
-        <div className="mt-6 grid grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={() => handleOAuthLogin('Google')}
-            disabled={isLoading || loading}
-            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 transition"
-          >
-            <FaGoogle className="text-red-500" />
-            <span className="text-sm font-medium">Google</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleOAuthLogin('Facebook')}
-            disabled={isLoading || loading}
-            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 transition"
-          >
-            <FaFacebook className="text-blue-600" />
-            <span className="text-sm font-medium">Facebook</span>
-          </button>
-        </div>
-
-        {/* Sign Up Link */}
-        <div className="mt-6 text-center">
-          <p className="text-gray-600">
-            Don't have an account?{' '}
-            <Link
-              to="/register"
-              className="text-amber-600 hover:text-amber-700 font-semibold transition"
-            >
-              Sign Up
-            </Link>
-          </p>
-        </div>
-
-        {/* Back to Home */}
-        {isAdminLogin && (
-          <div className="mt-4 text-center">
-            <Link
-              to="/"
-              className="text-sm text-gray-500 hover:text-gray-700 transition"
-            >
-              ← Back to Home
-            </Link>
-          </div>
-        )}
+    <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-accent/20 flex items-center justify-center p-4">
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
       </div>
+
+      <div className="relative z-10 w-full max-w-md">
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+          <div className="bg-gradient-to-r from-accent to-accent-hover p-8 text-center">
+            <div className="flex justify-center mb-4">
+              <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[180px] brightness-0 invert" />
+            </div>
+            <h1 className="text-2xl font-primary text-white mb-2">
+              {isAdminLogin ? 'Admin Login' : 'Sign In'}
+            </h1>
+            <p className="text-white/90 text-sm">
+              {isAdminLogin ? 'Hotel Management System' : 'Welcome back'}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-primary">
+                Email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <FaEnvelope className="text-gray-400" />
+                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                  placeholder="admin@hotel.com"
+                  required
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-primary">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <FaLock className="text-gray-400" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                  placeholder="••••••••"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-accent transition-colors text-sm"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent"
+                />
+                <span className="ml-2 text-sm text-gray-600">Remember me</span>
+              </label>
+              <Link to="/forgot-password" className="text-sm text-accent hover:text-accent-hover transition-colors">
+                Forgot password?
+              </Link>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full btn btn-primary btn-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <FaSpinner className="animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+
+            {!isAdminLogin && email !== 'admin@hotel.com' && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => handleOAuthLogin('google')}
+                    disabled={loading}
+                    className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FaGoogle className="text-red-500" />
+                    <span className="text-sm font-semibold">Google</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOAuthLogin('facebook')}
+                    disabled={loading}
+                    className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FaFacebook className="text-blue-600" />
+                    <span className="text-sm font-semibold">Facebook</span>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {isAdminLogin && (
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-xs font-semibold text-gray-700 mb-2">Demo Credentials:</p>
+                <div className="text-xs text-gray-600 space-y-1">
+                  <p><strong>Email:</strong> admin@hotel.com</p>
+                  <p><strong>Password:</strong> admin123</p>
+                </div>
+              </div>
+            )}
+
+            {!isAdminLogin && (
+              <div className="text-center pt-4">
+                <p className="text-sm text-gray-600">
+                  Don't have an account?{' '}
+                  <Link to="/register" className="text-accent hover:text-accent-hover font-semibold">
+                    Sign Up
+                  </Link>
+                </p>
+              </div>
+            )}
+          </form>
+
+          <div className="px-8 py-4 bg-gray-50 border-t border-gray-200 text-center">
+            <p className="text-xs text-gray-500">
+              © {new Date().getFullYear()} Hotel Booking. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };

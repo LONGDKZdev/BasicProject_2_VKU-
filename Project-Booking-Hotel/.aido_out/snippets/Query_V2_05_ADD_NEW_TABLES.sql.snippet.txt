@@ -1,0 +1,2 @@
+// snippet: Query_V2\05_ADD_NEW_TABLES.sql
+

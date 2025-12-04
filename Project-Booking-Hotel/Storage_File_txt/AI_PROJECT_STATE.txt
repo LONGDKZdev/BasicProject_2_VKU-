@@ -1,6 +1,6 @@
 =====================================================
 AI PROJECT STATE (AIDO V5)
-Generated: 2025-12-03T02:08:45.775Z
+Generated: 2025-12-04T02:04:40.858Z
 =====================================================
 
 PURPOSE: This file is the single source-of-truth to load project state into an AI assistant.
@@ -19,22 +19,23 @@ Project: hotelbooking v0.0.0
 ENVIRONMENT / SUPABASE KEYS (partial, redacted):
 - VITE_SUPABASE_URL=https://sxteddkozzqniebfstag.supabase.co
 - VITE_SUPABASE_ANON_KEY=<REDACTED>
+- SUPABASE_SERVICE_ROLE_KEY=<REDACTED>
 - VITE_EMAILJS_SERVICE_ID=your-service-id
 - VITE_EMAILJS_TEMPLATE_ID=your-template-id
 - VITE_EMAILJS_PUBLIC_KEY=<REDACTED>
 
 DATABASE (Query_V2) SUMMARY:
-- SQL Files: 4
-- Tables detected across SQL: 18
-- Functions detected: 6
-- Policies detected: 27
-- Enums detected: 5
+- SQL Files: 6
+- Tables detected across SQL: 19
+- Functions detected: 4
+- Policies detected: 0
+- Enums detected: 4
 
 AUTO PROJECT METRICS:
 {
-  "totalFiles": 123,
-  "jsFiles": 109,
-  "sqlFiles": 4
+  "totalFiles": 130,
+  "jsFiles": 107,
+  "sqlFiles": 6
 }
 
 TOP SNIPPETS INCLUDED (for compact AI payload):
@@ -44,12 +45,12 @@ TOP SNIPPETS INCLUDED (for compact AI payload):
 - src\components\chatBox\ChatBox.jsx => .aido_out\snippets\src_components_chatBox_ChatBox.jsx.snippet.txt
 - Query_V2\04_Full_seed_data.sql => .aido_out\snippets\Query_V2_04_Full_seed_data.sql.snippet.txt
 - src\pages\SpaPage.jsx => .aido_out\snippets\src_pages_SpaPage.jsx.snippet.txt
-- Query_V2\03_Setup_RLS.sql => .aido_out\snippets\Query_V2_03_Setup_RLS.sql.snippet.txt
 - src\components\admin\BookingsManagement_REFACTORED.js => .aido_out\snippets\src_components_admin_BookingsManagement_REFACTORED.js.snippet.txt
 - Query_V2\01_Clean_Data.sql => .aido_out\snippets\Query_V2_01_Clean_Data.sql.snippet.txt
+- src\pages\RoomDetails.jsx => .aido_out\snippets\src_pages_RoomDetails.jsx.snippet.txt
+- Query_V2\06_OPTIMIZE_INDEXES.sql => .aido_out\snippets\Query_V2_06_OPTIMIZE_INDEXES.sql.snippet.txt
+- Query_V2\03_Setup_RLS.sql => .aido_out\snippets\Query_V2_03_Setup_RLS.sql.snippet.txt
 - src\services\adminService_REFACTORED.js => .aido_out\snippets\src_services_adminService_REFACTORED.js.snippet.txt
-- src\pages\UserDashboard.jsx => .aido_out\snippets\src_pages_UserDashboard.jsx.snippet.txt
-- src\components\admin\BookingsManagement.jsx => .aido_out\snippets\src_components_admin_BookingsManagement.jsx.snippet.txt
 
 NEXT DEVELOPMENT TASKS (initial recommendations):
 1) Improve Booking Calendar UI interaction.

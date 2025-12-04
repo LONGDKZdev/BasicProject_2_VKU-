@@ -3,7 +3,7 @@ import { ScrollToTop, Toast } from '../components';
 import QRPayment from '../components/QRPayment';
 import Invoice from '../components/Invoice';
 import { useBookingContext } from '../context/BookingContext';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SimpleAuthContext';
 // ⚠️ Local images removed - now use Supabase URLs
 import { FaSpa, FaClock, FaMapMarkerAlt, FaPhoneAlt, FaStar, FaCheck, FaLeaf, FaWater, FaHandSparkles } from 'react-icons/fa';
 

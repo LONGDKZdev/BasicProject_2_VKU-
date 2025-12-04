@@ -1,56 +1,27 @@
 -- =========================================
--- 03_SETUP_RLS.SQL
+-- 03_SETUP_RLS.SQL (SIMPLIFIED)
+-- Disable RLS - Permission check on Frontend/Services
 -- =========================================
 
--- Enable RLS
-alter table public.profiles enable row level security;
-alter table public.room_types enable row level security;
-alter table public.amenities enable row level security;
-alter table public.room_type_amenities enable row level security;
-alter table public.rooms enable row level security;
-alter table public.room_images enable row level security;
-alter table public.room_reviews enable row level security;
-alter table public.price_rules enable row level security;
-alter table public.promotions enable row level security;
-alter table public.bookings enable row level security;
-alter table public.booking_items enable row level security;
-alter table public.audit_logs enable row level security;
+-- DISABLE RLS - Tất cả các bảng không dùng RLS
+-- Permissions được quản lý ở Frontend (AuthContext) & Services layer
+-- Admin check: if (user.role === 'admin') { allow all operations }
+-- User check: if (booking.user_id === current_user.id) { allow update/delete }
 
--- Policies
-create policy "profiles_owner_read" on public.profiles for select using (auth.uid() = id or public.is_admin(auth.uid()));
-create policy "profiles_owner_update" on public.profiles for update using (auth.uid() = id or public.is_admin(auth.uid()));
-
--- PUBLIC READ (Cho phép xem phòng, ảnh, review mà không cần login)
-create policy "rt_select_all" on public.room_types for select using (true);
-create policy "am_select_all" on public.amenities for select using (true);
-create policy "rta_select_all" on public.room_type_amenities for select using (true);
-create policy "r_select_all" on public.rooms for select using (true);
-create policy "ri_select_all" on public.room_images for select using (true);
-create policy "rr_select_all" on public.room_reviews for select using (true);
-create policy "pr_select_all" on public.price_rules for select using (true);
-create policy "pm_select_all" on public.promotions for select using (true);
-
--- ADMIN WRITE
-create policy "rt_admin_write" on public.room_types for all using (public.is_admin(auth.uid()));
-create policy "am_admin_write" on public.amenities for all using (public.is_admin(auth.uid()));
-create policy "rta_admin_write" on public.room_type_amenities for all using (public.is_admin(auth.uid()));
-create policy "r_admin_write" on public.rooms for all using (public.is_admin(auth.uid()));
-create policy "ri_admin_write" on public.room_images for all using (public.is_admin(auth.uid()));
-create policy "pr_admin_write" on public.price_rules for all using (public.is_admin(auth.uid()));
-create policy "pm_admin_write" on public.promotions for all using (public.is_admin(auth.uid()));
-
--- REVIEWS (User write)
-create policy "rr_user_insert" on public.room_reviews for insert with check (auth.uid() = user_id or user_id is null);
-create policy "rr_user_update" on public.room_reviews for update using (auth.uid() = user_id or public.is_admin(auth.uid()));
-create policy "rr_admin_delete" on public.room_reviews for delete using (public.is_admin(auth.uid()));
-
--- BOOKINGS (User own)
-create policy "b_owner_read" on public.bookings for select using (auth.uid() = user_id or public.is_admin(auth.uid()));
-create policy "b_owner_insert" on public.bookings for insert with check (auth.uid() = user_id or public.is_admin(auth.uid()));
-create policy "b_owner_update" on public.bookings for update using (auth.uid() = user_id or public.is_admin(auth.uid()));
-
-create policy "bi_read" on public.booking_items for select using (exists(select 1 from public.bookings b where b.id = booking_items.booking_id and (b.user_id = auth.uid() or public.is_admin(auth.uid()))));
-create policy "bi_write" on public.booking_items for all using (exists(select 1 from public.bookings b where b.id = booking_items.booking_id and (b.user_id = auth.uid() or public.is_admin(auth.uid()))));
-
-create policy "audit_admin_read" on public.audit_logs for select using (public.is_admin(auth.uid()));
-create policy "audit_admin_write" on public.audit_logs for all using (public.is_admin(auth.uid()));
+alter table public.users disable row level security;
+alter table public.profiles disable row level security;
+-- BỎ admin_accounts (đã gộp vào profiles)
+alter table public.room_types disable row level security;
+alter table public.amenities disable row level security;
+alter table public.room_type_amenities disable row level security;
+alter table public.rooms disable row level security;
+alter table public.room_images disable row level security;
+alter table public.room_reviews disable row level security;
+alter table public.price_rules disable row level security;
+alter table public.promotions disable row level security;
+alter table public.bookings disable row level security;
+alter table public.booking_items disable row level security;
+alter table public.audit_logs disable row level security;
+alter table public.restaurant_bookings disable row level security;
+alter table public.spa_bookings disable row level security;
+alter table public.password_reset_requests disable row level security;

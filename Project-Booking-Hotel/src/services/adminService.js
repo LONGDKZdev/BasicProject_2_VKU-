@@ -318,6 +318,78 @@ export const deleteUserProfileAdmin = async (id) => {
   }
 };
 
+/**
+ * ADMIN ACCOUNTS MANAGEMENT (Đã gộp vào profiles với is_admin)
+ */
+export const fetchAdminAccountsForAdmin = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('is_admin', true)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching admin accounts:', err);
+    throw err;
+  }
+};
+
+export const createAdminAccount = async (adminData) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: adminData.user_id,
+        full_name: adminData.full_name,
+        phone: adminData.phone || null,
+        is_admin: true,
+      }, {
+        onConflict: 'id'
+      })
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error creating admin account:', err);
+    throw err;
+  }
+};
+
+export const updateAdminAccount = async (adminId, adminData) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: adminData.full_name,
+        phone: adminData.phone,
+      })
+      .eq('id', adminId)
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error updating admin account:', err);
+    throw err;
+  }
+};
+
+export const deactivateAdminAccount = async (adminId) => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ is_admin: false })
+      .eq('id', adminId)
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error deactivating admin account:', err);
+    throw err;
+  }
+};
+
 export default {
   // Bookings
   fetchAllRoomBookingsForAdmin,
@@ -343,4 +415,9 @@ export default {
   fetchUsersForAdmin,
   updateUserAdmin,
   deleteUserProfileAdmin,
+  // Admin Accounts (riêng biệt từ users)
+  fetchAdminAccountsForAdmin,
+  createAdminAccount,
+  updateAdminAccount,
+  deactivateAdminAccount,
 };

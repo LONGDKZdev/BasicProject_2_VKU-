@@ -3,18 +3,20 @@ import { useNavigate, Link } from 'react-router-dom';
 import { LogoDark } from '../assets';
 import { FaEnvelope, FaSpinner, FaArrowLeft, FaCheckCircle } from 'react-icons/fa';
 import Toast from '../components/Toast';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SimpleAuthContext';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [toast, setToast] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
+  const [resetCode, setResetCode] = useState('');
   const navigate = useNavigate();
   const { resetPassword, loading, error: authError } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSuccessMessage('');
+    setResetCode('');
 
     if (!email) {
       setToast({
@@ -27,20 +29,21 @@ const ForgotPassword = () => {
     const result = await resetPassword(email);
     
     if (result.success) {
+      const code = result.resetCode || 'N/A';
+      setResetCode(code);
       setToast({
-        message: `Password reset link sent to ${email}! Check your inbox.`,
+        message: `Password reset code generated!`,
         type: 'success'
       });
-      setSuccessMessage(`We've sent a password reset link to ${email}. Click the link in the email to proceed with resetting your password. The link will expire in 24 hours.`);
-      setEmail('');
+      setSuccessMessage(`A password reset code has been generated. Use this code to reset your password. Code expires in 1 hour.`);
       
-      // Redirect to login after 5 seconds
+      // Auto redirect to reset password page with code
       setTimeout(() => {
-        navigate('/login');
-      }, 5000);
+        navigate(`/reset-password?email=${encodeURIComponent(email)}&code=${code}`);
+      }, 3000);
     } else {
       setToast({
-        message: result.error || 'Failed to send reset link. Please try again.',
+        message: result.error || 'Failed to generate reset code. Please try again.',
         type: 'error'
       });
     }
@@ -132,6 +135,17 @@ const ForgotPassword = () => {
                 <p className="text-sm text-blue-900">
                   {successMessage}
                 </p>
+                {resetCode && (
+                  <div className="mt-3 p-3 bg-white rounded border-2 border-blue-300">
+                    <p className="text-xs text-blue-700 mb-1 font-semibold">Your Reset Code:</p>
+                    <p className="text-2xl font-mono font-bold text-blue-900 tracking-wider text-center">
+                      {resetCode}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-2 text-center">
+                      (You will be redirected to reset page in 3 seconds)
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -145,10 +159,11 @@ const ForgotPassword = () => {
                   onClick={() => {
                     setSuccessMessage('');
                     setEmail('');
+                    setResetCode('');
                   }}
                   className="w-full btn btn-secondary btn-sm"
                 >
-                  Send Another Link
+                  Request Another Code
                 </button>
               </div>
             </div>

@@ -1,0 +1,81 @@
+PERMISSION ARCHITECTURE (SIMPLIFIED)
+=====================================
+
+## Structure: Frontend-Based Access Control (No RLS)
+
+✅ Database: RLS DISABLED (all tables)
+✅ Permission Check: Frontend + Services layer
+✅ Role System: 2 roles only (user | admin)
+
+## Flow:
+
+1. User logs in → AuthContext fetches user.role from profiles table
+2. useAuth() returns: isAdmin() boolean helper
+3. Route check: ProtectedRoute uses isAdmin() for /admin routes
+4. Service calls: Services make direct queries (no RLS blocking)
+5. Data ownership: Services don't filter - UI handles it
+
+## In Code:
+
+### AuthContext
+- isAdmin() → returns user?.role === 'admin'
+- isAuthenticated() → returns user !== null
+
+### Routes (App.jsx)
+```jsx
+<Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
+```
+
+### Services (adminService.js, bookingService.js)
+- No RLS checks - query directly from DB
+- Frontend/Components verify: if (isAdmin()) { show feature }
+
+### Components
+```jsx
+import { useAuth } from '../context/AuthContext';
+
+function MyComponent() {
+  const { isAdmin, user } = useAuth();
+  
+  if (isAdmin()) {
+    return <AdminContent />;
+  }
+  return <UserContent />;
+}
+```
+
+## CRUD Permissions:
+
+| Operation | User | Admin | Owner Only? |
+|-----------|------|-------|------------|
+| View Rooms | ✅ | ✅ | No |
+| Create Booking | ✅ | ✅ | No |
+| Update Own Booking | ✅ | ✅ | Yes |
+| Cancel Booking | ✅ | ✅ | Yes |
+| Manage Room Types | ❌ | ✅ | No |
+| Manage Users | ❌ | ✅ | No |
+| Manage Bookings | ❌ | ✅ | No |
+| View Reports | ❌ | ✅ | No |
+
+## Setup Checklist:
+
+✅ 03_Setup_RLS.sql - RLS DISABLED
+✅ AuthContext - isAdmin() function
+✅ ProtectedRoute - checks isAdmin()
+✅ Services - full CRUD (no filters)
+✅ AdminSidebar - menu for admin
+✅ Admin pages - accessible to admins only
+
+## Security Note:
+
+⚠️ This is FRONTEND-BASED security. Suitable for:
+- Small projects / internal tools
+- Trusted environments
+- Rapid development
+
+Not suitable for:
+- Public APIs
+- Financial data
+- Multi-tenant systems
+
+If you need DB-level security, re-enable RLS and add policies.

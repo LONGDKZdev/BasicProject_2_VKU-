@@ -13,7 +13,7 @@ import {
   FaUsers
 } from 'react-icons/fa';
 import { LogoDark } from '../assets';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/SimpleAuthContext';
 import { useMemo } from 'react';
 
 const AdminSidebar = ({ activeSection, setActiveSection }) => {

@@ -8,6 +8,10 @@ const CheckIn = () => {
   const { checkInDate, setCheckInDate, checkOutDate, setCheckOutDate } = useRoomContext();
 
   const handleChange = (date) => {
+    // Validate: can't check in on past dates
+    if (date && date < new Date(new Date().setHours(0, 0, 0, 0))) {
+      return;
+    }
     setCheckInDate(date);
     if (checkOutDate && date && date >= checkOutDate) {
       setCheckOutDate(null);
