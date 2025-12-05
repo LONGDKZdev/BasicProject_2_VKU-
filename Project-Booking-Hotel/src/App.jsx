@@ -1,5 +1,5 @@
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
-import { Footer, Header, PageNotFound, ProtectedRoute } from "./components";
+import { Footer, Header, ProtectedRoute } from "./components";
 import ChatBox from "./components/chatBox";
 import {
   Home,
@@ -15,6 +15,7 @@ import {
   RestaurantPage,
   SpaPage,
   CleanupPage,
+  NotFound404,
 } from "./pages";
 import "./style/chatbox.css";
 
@@ -68,7 +69,7 @@ const AppContent = () => {
           }
         />
         <Route path={"/cleanup"} element={<CleanupPage />} />
-        <Route path={"*"} element={<PageNotFound />} />
+        <Route path={"*"} element={<NotFound404 />} />
       </Routes>
 
       {!shouldHideHeaderFooter && <Footer />}

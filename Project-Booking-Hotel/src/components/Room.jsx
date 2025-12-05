@@ -1,8 +1,31 @@
 import { BsArrowsFullscreen, BsPeople } from "react-icons/bs";
 import { FaStar } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import { getImageUrlsByRoomType } from "../utils/supabaseStorageUrls";
 
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms';
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23ddd' width='400' height='300'/%3E%3Ctext x='50%' y='50%' font-size='18' fill='%23999' text-anchor='middle' dy='.3em'%3ELoading image...%3C/text%3E%3C/svg%3E";
+
+/**
+ * Generate fallback image URL based on room type or number
+ */
+const getFallbackImageUrl = (roomNo, type) => {
+  if (!type) {
+    // Try to extract number from roomNo (e.g., "STD-01" -> 1, "DLX-05" -> 5)
+    if (roomNo) {
+      const match = roomNo.match(/\d+/);
+      if (match) {
+        const imgIndex = parseInt(match[0]) % 8 || 1;
+        return `${STORAGE_URL}/${imgIndex === 0 ? 8 : imgIndex}-lg.png`;
+      }
+    }
+    return PLACEHOLDER_IMG;
+  }
+  
+  // Use room type to get image URL
+  const imageUrls = getImageUrlsByRoomType(type);
+  return imageUrls?.image_lg_url || imageUrls?.image_url || PLACEHOLDER_IMG;
+};
 
 const Room = ({ room }) => {
   if (!room) return null;
@@ -20,8 +43,8 @@ const Room = ({ room }) => {
     reviews,
   } = room;
 
-  // Use Supabase image URL if available
-  const displayImage = image || PLACEHOLDER_IMG;
+  // Use Supabase image URL if available, otherwise use fallback
+  const displayImage = image || getFallbackImageUrl(roomNo, type);
 
   // Calculate average rating from reviews
   const averageRating = reviews && reviews.length > 0
@@ -35,9 +58,16 @@ const Room = ({ room }) => {
           src={displayImage}
           alt={name || "room"}
           className="group-hover:scale-110 transition-all duration-300 w-full object-cover h-64"
+          loading="lazy"
           onError={(e) => {
-            console.warn('Image failed to load from Supabase:', displayImage);
-            e.target.src = PLACEHOLDER_IMG;
+            // If error occurs, try fallback URL first, then use placeholder
+            if (e.target.src !== PLACEHOLDER_IMG && e.target.src !== getFallbackImageUrl(roomNo, type)) {
+              console.warn('Image failed to load, trying fallback:', displayImage);
+              e.target.src = getFallbackImageUrl(roomNo, type);
+            } else {
+              console.warn('All image sources failed, using placeholder');
+              e.target.src = PLACEHOLDER_IMG;
+            }
           }}
         />
         {type && (

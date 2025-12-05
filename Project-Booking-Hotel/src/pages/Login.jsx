@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/SimpleAuthContext';
-import { FaEnvelope, FaLock, FaSpinner, FaGoogle, FaFacebook } from 'react-icons/fa';
+import { FaEnvelope, FaLock, FaSpinner, FaGoogle, FaFacebook, FaUserShield, FaUser } from 'react-icons/fa';
 import Toast from '../components/Toast';
 
 const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
@@ -11,7 +11,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isAdminLogin, setIsAdminLogin] = useState(false);
+  const [userRole, setUserRole] = useState('user'); // 'user' or 'admin'
   const [toast, setToast] = useState(null);
   
   const { login, adminLogin, loginWithOAuth, loading, isAuthenticated } = useAuth();
@@ -19,16 +19,19 @@ const Login = () => {
   const location = useLocation();
 
   useEffect(() => {
+    // Auto-detect role from URL path
     const isAdmin = location.pathname === '/admin/login' || location.search.includes('admin=true');
-    setIsAdminLogin(isAdmin);
+    if (isAdmin) {
+      setUserRole('admin');
+    }
   }, [location]);
 
   useEffect(() => {
     if (isAuthenticated()) {
-      const from = location.state?.from?.pathname || (isAdminLogin ? '/admin' : '/');
+      const from = location.state?.from?.pathname || (userRole === 'admin' ? '/admin' : '/');
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, location, isAdminLogin]);
+  }, [isAuthenticated, navigate, location, userRole]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,9 +42,8 @@ const Login = () => {
       return;
     }
 
-    // Chỉ dùng adminLogin khi vào /admin/login
-    // Nếu đăng nhập bình thường, dùng login() và check role sau
-    const result = isAdminLogin 
+    // Sử dụng role được chọn để quyết định login method
+    const result = userRole === 'admin'
       ? await adminLogin(email, password)
       : await login(email, password);
     
@@ -51,12 +53,9 @@ const Login = () => {
         type: 'success'
       });
       setTimeout(() => {
-        // Redirect dựa trên role hoặc path
+        // Redirect dựa trên role được chọn hoặc role thực tế của user
         let redirectPath = '/';
-        if (isAdminLogin) {
-          redirectPath = '/admin';
-        } else if (result.user.isAdmin) {
-          // Nếu user là admin nhưng đăng nhập từ /login, có thể redirect đến /admin
+        if (userRole === 'admin' || result.user.isAdmin) {
           redirectPath = '/admin';
         } else {
           redirectPath = '/';
@@ -70,7 +69,7 @@ const Login = () => {
   };
 
   const handleOAuthLogin = async (provider) => {
-    if (isAdminLogin) {
+    if (userRole === 'admin') {
       setError('OAuth login is not available for admin');
       return;
     }
@@ -105,14 +104,51 @@ const Login = () => {
               <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[180px] brightness-0 invert" />
             </div>
             <h1 className="text-2xl font-primary text-white mb-2">
-              {isAdminLogin ? 'Admin Login' : 'Sign In'}
+              Sign In
             </h1>
             <p className="text-white/90 text-sm">
-              {isAdminLogin ? 'Hotel Management System' : 'Welcome back'}
+              Welcome back
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            {/* Role Selection */}
+            <div>
+              <label className="block text-sm font-semibold mb-2 text-primary">
+                Login As
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setUserRole('user')}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                    userRole === 'user'
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+                  }`}
+                >
+                  <FaUser />
+                  <span className="font-semibold">User</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserRole('admin')}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                    userRole === 'admin'
+                      ? 'border-accent bg-accent/10 text-accent'
+                      : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+                  }`}
+                >
+                  <FaUserShield />
+                  <span className="font-semibold">Admin</span>
+                </button>
+              </div>
+              {userRole === 'admin' && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Admin login requires admin privileges
+                </p>
+              )}
+            </div>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}
@@ -194,7 +230,7 @@ const Login = () => {
               )}
             </button>
 
-            {!isAdminLogin && email !== 'admin@hotel.com' && (
+            {userRole === 'user' && (
               <>
                 <div className="relative my-6">
                   <div className="absolute inset-0 flex items-center">
@@ -229,17 +265,17 @@ const Login = () => {
               </>
             )}
 
-            {isAdminLogin && (
+            {userRole === 'admin' && (
               <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs font-semibold text-gray-700 mb-2">Demo Credentials:</p>
+                {/* <p className="text-xs font-semibold text-gray-700 mb-2">Admin Credentials:</p>
                 <div className="text-xs text-gray-600 space-y-1">
                   <p><strong>Email:</strong> admin@hotel.com</p>
                   <p><strong>Password:</strong> admin123</p>
-                </div>
+                </div> */}
               </div>
             )}
 
-            {!isAdminLogin && (
+            {userRole === 'user' && (
               <div className="text-center pt-4">
                 <p className="text-sm text-gray-600">
                   Don't have an account?{' '}

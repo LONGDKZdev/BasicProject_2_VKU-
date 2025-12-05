@@ -17,6 +17,8 @@ import {
   createBooking,
   updateBookingStatus,
 } from "../services/bookingService";
+import { useAuth } from "./SimpleAuthContext";
+import { getImageUrlsByRoomType } from "../utils/supabaseStorageUrls";
 
 const RoomInfo = createContext();
 
@@ -109,8 +111,8 @@ const enhanceRoomsWithReviews = () => {
         price: roomType.basePrice,
         maxPerson: roomType.maxPerson,
         size: 35,
-        image: null, // Placeholder - no local image
-        imageLg: null,
+        // Use fallback image URLs from Supabase Storage based on room type
+        ...(getImageUrlsByRoomType(roomType.code) || { image: null, imageLg: null }),
         facilities: [
           { name: 'Free Wi-Fi' },
           { name: 'Air Conditioning' },
@@ -186,6 +188,7 @@ const isOverlap = (startA, endA, startB, endB) => {
 };
 
 export const RoomContext = ({ children }) => {
+  const { user } = useAuth();
   const [allRooms, setAllRooms] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -260,6 +263,58 @@ export const RoomContext = ({ children }) => {
   }, [priceBounds]);
 
   /**
+   * Load user bookings from Supabase when user logs in
+   */
+  useEffect(() => {
+    const loadUserBookings = async () => {
+      if (!user?.id || !dbConnected) {
+        setBookings([]);
+        return;
+      }
+
+      try {
+        const dbBookings = await fetchUserBookings(user.id);
+        if (dbBookings && dbBookings.length > 0) {
+          // Transform DB bookings to frontend format
+          const transformedBookings = dbBookings.map((dbBooking) => ({
+            id: dbBooking.id,
+            confirmationCode: dbBooking.confirmation_code,
+            roomId: dbBooking.room_id,
+            roomName: dbBooking.room_name,
+            userId: dbBooking.user_id,
+            userEmail: dbBooking.user_email,
+            userName: dbBooking.user_name,
+            checkIn: dbBooking.check_in,
+            checkOut: dbBooking.check_out,
+            adults: dbBooking.num_adults,
+            kids: dbBooking.num_children,
+            totalNights: dbBooking.total_nights,
+            totalPrice: parseFloat(dbBooking.total_amount) || 0,
+            pricingBreakdown: dbBooking.pricing_breakdown || [],
+            note: dbBooking.note,
+            promoCode: dbBooking.promo_code,
+            subtotal: parseFloat(dbBooking.subtotal) || 0,
+            discount: parseFloat(dbBooking.discount) || 0,
+            status: dbBooking.status,
+            type: "room",
+            createdAt: dbBooking.created_at,
+            history: dbBooking.history || [],
+          }));
+          setBookings(transformedBookings);
+          console.log(`✅ Loaded ${transformedBookings.length} room bookings from Supabase for user ${user.id}`);
+        } else {
+          setBookings([]);
+        }
+      } catch (err) {
+        console.error('Failed to load user bookings:', err);
+        setBookings([]);
+      }
+    };
+
+    loadUserBookings();
+  }, [user?.id, dbConnected]);
+
+  /**
    * Auto-mark completed bookings in memory (no localStorage persistence).
    */
   useEffect(() => {
@@ -277,7 +332,7 @@ export const RoomContext = ({ children }) => {
       });
       return changed ? updated : prev;
     });
-  }, []);
+  }, [bookings.length]);
 
   const availableRoomTypes = useMemo(() => {
     const types = new Set();
@@ -689,18 +744,53 @@ export const RoomContext = ({ children }) => {
             kids: dbBooking.num_children,
             totalNights: dbBooking.total_nights,
             totalPrice: parseFloat(dbBooking.total_amount),
-            pricingBreakdown: dbBooking.pricing_breakdown,
+            pricingBreakdown: dbBooking.pricing_breakdown || [],
             note: dbBooking.note,
             status: dbBooking.status,
             type: "room",
             createdAt: dbBooking.created_at,
             history: dbBooking.history || [],
             promoCode: dbBooking.promo_code, // NEW
-            subtotal: parseFloat(dbBooking.subtotal), // NEW
-            discount: parseFloat(dbBooking.discount), // NEW
+            subtotal: parseFloat(dbBooking.subtotal) || 0, // NEW
+            discount: parseFloat(dbBooking.discount) || 0, // NEW
           };
+          // Add to state and reload from DB to ensure consistency
           saveBookings((prev) => [frontendBooking, ...prev]);
+          // Reload from DB to get latest data
+          if (user?.id) {
+            fetchUserBookings(user.id).then((dbBookings) => {
+              if (dbBookings && dbBookings.length > 0) {
+                const transformed = dbBookings.map((db) => ({
+                  id: db.id,
+                  confirmationCode: db.confirmation_code,
+                  roomId: db.room_id,
+                  roomName: db.room_name,
+                  userId: db.user_id,
+                  userEmail: db.user_email,
+                  userName: db.user_name,
+                  checkIn: db.check_in,
+                  checkOut: db.check_out,
+                  adults: db.num_adults,
+                  kids: db.num_children,
+                  totalNights: db.total_nights,
+                  totalPrice: parseFloat(db.total_amount) || 0,
+                  pricingBreakdown: db.pricing_breakdown || [],
+                  note: db.note,
+                  promoCode: db.promo_code,
+                  subtotal: parseFloat(db.subtotal) || 0,
+                  discount: parseFloat(db.discount) || 0,
+                  status: db.status,
+                  type: "room",
+                  createdAt: db.created_at,
+                  history: db.history || [],
+                }));
+                setBookings(transformed);
+              }
+            });
+          }
         }
+      }).catch((err) => {
+        console.error('❌ Failed to save booking to Supabase:', err);
       });
     } else {
       // Local storage only

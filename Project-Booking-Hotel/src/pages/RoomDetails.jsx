@@ -53,6 +53,7 @@ const RoomDetails = () => {
     confirmBookingPayment,
     hasUserBookedRoom,
     calculatePricingForRoom,
+    getUserBookings,
   } = useRoomContext();
   const { user, isAuthenticated } = useAuth();
 
@@ -225,7 +226,7 @@ const RoomDetails = () => {
     setCurrentBooking(null);
   };
 
-  const handleReviewSubmit = (e) => {
+  const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!isAuthenticated()) {
       showToast({ type: 'info', message: 'Sign in to share your review.' });
@@ -234,6 +235,28 @@ const RoomDetails = () => {
     if (!reviewForm.comment.trim()) {
       showToast({ type: 'error', message: 'Please add your thoughts before submitting.' });
       return;
+    }
+
+    // Check if user has completed booking for this room
+    if (user?.id && room?.id) {
+      const userBookings = getUserBookings(user.id);
+      const hasCompletedBooking = userBookings.some((booking) => {
+        if (booking.roomId === room.id && booking.status !== 'cancelled') {
+          // Check if checkOut date has passed (completed stay)
+          const checkOut = new Date(booking.checkOut);
+          const now = new Date();
+          return checkOut < now;
+        }
+        return false;
+      });
+
+      if (!hasCompletedBooking) {
+        showToast({ 
+          type: 'error', 
+          message: 'You can only review rooms you have stayed in. Please complete a booking first.' 
+        });
+        return;
+      }
     }
 
     const newReview = {

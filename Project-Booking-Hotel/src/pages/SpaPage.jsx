@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ScrollToTop, Toast } from '../components';
 import QRPayment from '../components/QRPayment';
 import Invoice from '../components/Invoice';
@@ -111,6 +111,18 @@ const SpaPage = () => {
     therapist: '',
     specialRequests: '',
   });
+
+  // Auto-fill form when user is logged in
+  useEffect(() => {
+    if (user) {
+      setBookingForm((prev) => ({
+        ...prev,
+        name: user.full_name || user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+      }));
+    }
+  }, [user]);
 
   const handleBookingSubmit = (e) => {
     e.preventDefault();

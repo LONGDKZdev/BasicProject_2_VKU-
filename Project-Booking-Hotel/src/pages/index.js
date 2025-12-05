@@ -11,3 +11,4 @@ export { default as UserDashboard } from "./UserDashboard";
 export { default as RestaurantPage } from "./RestaurantPage";
 export { default as SpaPage } from "./SpaPage";
 export { default as CleanupPage } from "./CleanupPage";
+export { default as NotFound404 } from "./NotFound404";
