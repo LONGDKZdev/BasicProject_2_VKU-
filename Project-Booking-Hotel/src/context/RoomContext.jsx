@@ -11,11 +11,14 @@ import {
   hasUserBookedRoomType,
   fetchPriceRules,
   fetchPromotions,
+  fetchHolidayCalendar,
 } from "../services/roomService";
 import {
   fetchUserBookings,
   createBooking,
   updateBookingStatus,
+  createBookingItems,
+  createBookingPricingBreakdown,
 } from "../services/bookingService";
 import { useAuth } from "./SimpleAuthContext";
 import { getImageUrlsByRoomType } from "../utils/supabaseStorageUrls";
@@ -211,6 +214,7 @@ export const RoomContext = ({ children }) => {
   // Pricing state
   const [priceRules, setPriceRules] = useState([]);
   const [promotions, setPromotions] = useState([]);
+  const [holidayCalendar, setHolidayCalendar] = useState([]);
 
   /**
    * Load rooms from Supabase (with fallback to local seed data)
@@ -220,10 +224,11 @@ export const RoomContext = ({ children }) => {
       setLoading(true);
       try {
         // Try to fetch from Supabase (with images)
-        const [dbRooms, dbRules, dbPromotions] = await Promise.all([
+        const [dbRooms, dbRules, dbPromotions, dbHolidays] = await Promise.all([
           fetchRoomsWithImages(),
           fetchPriceRules(),
           fetchPromotions(),
+          fetchHolidayCalendar(),
         ]);
         
         if (dbRooms && dbRooms.length > 0) {
@@ -235,8 +240,9 @@ export const RoomContext = ({ children }) => {
           setRooms(transformedRooms);
           setPriceRules(dbRules);
           setPromotions(dbPromotions);
+          setHolidayCalendar(dbHolidays || []);
           setDbConnected(true);
-          console.log(`✓ Loaded ${transformedRooms.length} rooms, ${dbRules.length} rules, ${dbPromotions.length} promotions from Supabase`);
+          console.log(`✓ Loaded ${transformedRooms.length} rooms, ${dbRules.length} rules, ${dbPromotions.length} promotions, ${dbHolidays?.length || 0} holidays from Supabase`);
         } else {
           throw new Error('No rooms from DB');
         }
@@ -356,9 +362,19 @@ export const RoomContext = ({ children }) => {
 
   const getRoomById = (roomId) => allRooms.find((room) => room.id === roomId);
 
+  // Check if a date is a holiday
+  const isHoliday = (date) => {
+    const dateKey = formatDateKey(date);
+    return holidayCalendar.find(h => 
+      h.is_active && 
+      formatDateKey(h.holiday_date) === dateKey
+    );
+  };
+
   const getApplicablePriceRules = (roomTypeId, date) => {
     const day = date.getDay(); // 0=Sun, 6=Sat
     const dateKey = formatDateKey(date);
+    const holiday = isHoliday(date);
 
     // 1. Filter rules relevant to the room type or all types (room_type_id IS NULL implies all types, but our seeded data links rules to specific types)
     const applicableRules = priceRules.filter(rule =>
@@ -373,21 +389,24 @@ export const RoomContext = ({ children }) => {
     for (const rule of applicableRules) {
       let isApplied = false;
 
+      // Check holiday rules first (highest priority)
+      if (holiday && rule.rule_type === 'holiday') {
+        isApplied = true;
+      }
+      
       // Check date range rules (seasonal, holiday defined by date range)
-      if (rule.start_date && rule.end_date) {
+      if (!isApplied && rule.start_date && rule.end_date) {
         if (dateKey >= formatDateKey(rule.start_date) && dateKey < formatDateKey(rule.end_date)) {
           isApplied = true;
         }
       }
       
-      // Check day of week rules (weekend)
-      if (!isApplied && rule.rule_type === 'weekend') {
+      // Check day of week rules (weekend) - only if not a holiday
+      if (!isApplied && !holiday && rule.rule_type === 'weekend') {
         if (rule.apply_sun && day === 0) isApplied = true;
         if (rule.apply_fri && day === 5) isApplied = true;
         if (rule.apply_sat && day === 6) isApplied = true;
       }
-      
-      // Check holiday/seasonal rules that might define exact dates (if implemented later, for now we rely on date range)
 
       if (isApplied && rule.priority < highestPriority) {
         highestPriority = rule.priority;
@@ -395,7 +414,7 @@ export const RoomContext = ({ children }) => {
       }
     }
     
-    return bestRule;
+    return { rule: bestRule, holiday };
   };
 
   const calculatePricingForRoom = (room, start, end) => {
@@ -418,16 +437,37 @@ export const RoomContext = ({ children }) => {
       let label = "Standard rate";
       let rate = roomBasePrice;
 
-      // 1. Find Price Rule (Highest Priority applies)
-      const rule = getApplicablePriceRules(roomTypeId, currentDate);
+      // 1. Check if date is a holiday
+      const holiday = isHoliday(currentDate);
+      
+      // 2. Find Price Rule (Highest Priority applies)
+      const ruleResult = getApplicablePriceRules(roomTypeId, currentDate);
+      const rule = ruleResult.rule;
       
       if (rule) {
-        // Price field in DB is the actual rate multiplier (e.g., 1.15) or fixed price (not implemented yet)
-        const multiplier = Number(rule.price);
-        rate = Math.round(roomBasePrice * multiplier);
+        // Price field in DB can be:
+        // - Multiplier (e.g., 1.15, 1.35) → multiply with base price
+        // - Fixed price (e.g., 200, 300) → use directly
+        // Logic: If price is between 0.5 and 10, it's likely a multiplier
+        // Otherwise, it's a fixed price
+        const rulePrice = Number(rule.price);
+        const isFixedPrice = rulePrice < 0.5 || rulePrice > 10;
+        
+        if (isFixedPrice) {
+          // Fixed price - use directly
+          rate = Math.round(rulePrice);
+        } else {
+          // Multiplier - multiply with base price
+          rate = Math.round(roomBasePrice * rulePrice);
+        }
         
         // Use rule type/description for label
         label = rule.description || `${rule.rule_type} rate`;
+      } else if (holiday) {
+        // Apply holiday multiplier from holiday_calendar if no specific rule
+        const multiplier = Number(holiday.multiplier) || PRICING_DEFAULTS.holidayMultiplier;
+        rate = Math.round(roomBasePrice * multiplier);
+        label = holiday.name || "Holiday rate";
       }
       
       // We ignore promotions here, promotions are applied globally to the total booking amount later.
@@ -650,7 +690,11 @@ export const RoomContext = ({ children }) => {
     adults: bookingAdults,
     kids: bookingKids,
     note,
-    promoCode = null, // Thêm promoCode
+    promoCode = null,
+    // Guest booking fields
+    guestName = null,
+    guestEmail = null,
+    guestPhone = null,
   }) => {
     const room = getRoomById(roomId);
     if (!room) {
@@ -686,14 +730,46 @@ export const RoomContext = ({ children }) => {
     let discount = 0;
     let finalTotal = total;
     let promo = null;
+    let promoError = null;
 
     if (promoCode) {
-      promo = promotions.find(p => p.code === promoCode && new Date(p.end_date) >= new Date() && p.is_active);
-      if (promo) {
+      const now = new Date();
+      const promoCodeUpper = promoCode.trim().toUpperCase();
+      
+      // Find promotion with full validation
+      promo = promotions.find(p => {
+        if (!p.is_active) return false;
+        if (p.code.toUpperCase() !== promoCodeUpper) return false;
+        
+        // Check date range
+        const startDate = new Date(p.start_date);
+        const endDate = new Date(p.end_date);
+        
+        if (now < startDate) {
+          promoError = `Promotion "${p.code}" starts on ${startDate.toLocaleDateString()}`;
+          return false;
+        }
+        if (now > endDate) {
+          promoError = `Promotion "${p.code}" expired on ${endDate.toLocaleDateString()}`;
+          return false;
+        }
+        
+        return true;
+      });
+      
+      if (!promo && promoCode) {
+        // Promotion not found or invalid
+        if (!promoError) {
+          promoError = `Promotion code "${promoCode}" not found or invalid`;
+        }
+        // Return error but don't block booking - user can proceed without promo
+        console.warn('⚠ Promotion validation failed:', promoError);
+      } else if (promo) {
+        // Valid promotion - apply discount
         if (promo.discount_kind === 'percent') {
           discount = Math.round(total * (Number(promo.discount_value) / 100));
         } else if (promo.discount_kind === 'fixed') {
-          discount = Number(promo.discount_value);
+          discount = Math.min(Number(promo.discount_value), total); // Don't exceed total
         }
         finalTotal = total - discount;
         if (finalTotal < 0) finalTotal = 0;
@@ -704,9 +780,12 @@ export const RoomContext = ({ children }) => {
     const newBooking = {
       id: dbConnected ? undefined : createId(), // Let DB generate UUID if connected
       confirmation_code: confirmationCode,
-      user_id: userId,
+      user_id: userId, // null for guest bookings
       user_email: userEmail,
       user_name: userName,
+      // Guest booking fields (for non-authenticated users)
+      guest_name: guestName || null,
+      guest_phone: guestPhone || null,
       room_name: roomName,
       room_id: roomId, // References room UUID
       check_in: normalizedCheckIn,
@@ -730,6 +809,24 @@ export const RoomContext = ({ children }) => {
       // Create in Supabase (async, but we'll optimistically update UI)
       createBooking(newBooking).then((dbBooking) => {
         if (dbBooking) {
+          // Create booking items (one per night)
+          createBookingItems(
+            dbBooking.id,
+            roomId,
+            roomTypeId,
+            breakdown
+          ).catch((err) => {
+            console.error('❌ Failed to create booking items:', err);
+          });
+          
+          // Create pricing breakdown records
+          createBookingPricingBreakdown(
+            dbBooking.id,
+            breakdown
+          ).catch((err) => {
+            console.error('❌ Failed to create pricing breakdown:', err);
+          });
+          
           const frontendBooking = {
             id: dbBooking.id,
             confirmationCode: dbBooking.confirmation_code,
@@ -738,6 +835,8 @@ export const RoomContext = ({ children }) => {
             userId: dbBooking.user_id,
             userEmail: dbBooking.user_email,
             userName: dbBooking.user_name,
+            guestName: dbBooking.guest_name || null, // Guest booking info
+            guestPhone: dbBooking.guest_phone || null,
             checkIn: dbBooking.check_in,
             checkOut: dbBooking.check_out,
             adults: dbBooking.num_adults,
@@ -768,6 +867,8 @@ export const RoomContext = ({ children }) => {
                   userId: db.user_id,
                   userEmail: db.user_email,
                   userName: db.user_name,
+                  guestName: db.guest_name || null, // Guest booking info
+                  guestPhone: db.guest_phone || null,
                   checkIn: db.check_in,
                   checkOut: db.check_out,
                   adults: db.num_adults,
@@ -802,6 +903,8 @@ export const RoomContext = ({ children }) => {
         userId,
         userEmail,
         userName,
+        guestName: guestName || null, // Guest booking info
+        guestPhone: guestPhone || null,
         checkIn: normalizedCheckIn,
         checkOut: normalizedCheckOut,
         adults: bookingAdults,
@@ -832,6 +935,8 @@ export const RoomContext = ({ children }) => {
         userId,
         userEmail,
         userName,
+        guestName: guestName || null, // Guest booking info
+        guestPhone: guestPhone || null,
         checkIn: normalizedCheckIn,
         checkOut: normalizedCheckOut,
         adults: bookingAdults,
@@ -848,6 +953,7 @@ export const RoomContext = ({ children }) => {
         createdAt: new Date().toISOString(),
         history: [],
       },
+      promoError: promoError || null, // Return promo error if any (for UI display)
     };
   };
 

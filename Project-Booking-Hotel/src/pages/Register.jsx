@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/SimpleAuthContext';
-import { FaEnvelope, FaLock, FaUser, FaSpinner, FaGoogle, FaFacebook } from 'react-icons/fa';
+import { FaEnvelope, FaLock, FaUser, FaSpinner, FaGoogle, FaFacebook, FaCheck, FaTimes } from 'react-icons/fa';
 import Toast from '../components/Toast';
 
 const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
@@ -47,6 +47,28 @@ const Register = () => {
     return emailRegex.test(email);
   };
 
+  // Password strength validation
+  const passwordRequirements = useMemo(() => {
+    const password = formData.password;
+    return {
+      minLength: password.length >= 8,
+      hasUpperCase: /[A-Z]/.test(password),
+      hasLowerCase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password),
+    };
+  }, [formData.password]);
+
+  const isPasswordValid = useMemo(() => {
+    return Object.values(passwordRequirements).every(req => req === true);
+  }, [passwordRequirements]);
+
+  // Check if passwords match
+  const passwordsMatch = useMemo(() => {
+    if (!formData.confirmPassword) return null; // Not checked yet
+    return formData.password === formData.confirmPassword;
+  }, [formData.password, formData.confirmPassword]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -66,8 +88,9 @@ const Register = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    // Validate password strength
+    if (!isPasswordValid) {
+      setError('Password does not meet all requirements. Please check the password requirements.');
       return;
     }
 
@@ -187,7 +210,13 @@ const Register = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                  className={`w-full pl-12 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all ${
+                    formData.password && !isPasswordValid 
+                      ? 'border-red-300 focus:ring-red-500' 
+                      : formData.password && isPasswordValid
+                      ? 'border-green-300 focus:ring-green-500'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="••••••••"
                   required
                   disabled={loading}
@@ -200,6 +229,62 @@ const Register = () => {
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
+              
+              {/* Password Strength Indicator - Below input */}
+              {formData.password && (
+                <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Password Requirements:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <div className={`flex items-center gap-2 text-xs ${passwordRequirements.minLength ? 'text-green-600' : 'text-gray-500'}`}>
+                      {passwordRequirements.minLength ? (
+                        <FaCheck className="text-green-600 flex-shrink-0" />
+                      ) : (
+                        <FaTimes className="text-gray-400 flex-shrink-0" />
+                      )}
+                      <span>At least 8 characters</span>
+                    </div>
+                    <div className={`flex items-center gap-2 text-xs ${passwordRequirements.hasUpperCase ? 'text-green-600' : 'text-gray-500'}`}>
+                      {passwordRequirements.hasUpperCase ? (
+                        <FaCheck className="text-green-600 flex-shrink-0" />
+                      ) : (
+                        <FaTimes className="text-gray-400 flex-shrink-0" />
+                      )}
+                      <span>One uppercase (A-Z)</span>
+                    </div>
+                    <div className={`flex items-center gap-2 text-xs ${passwordRequirements.hasLowerCase ? 'text-green-600' : 'text-gray-500'}`}>
+                      {passwordRequirements.hasLowerCase ? (
+                        <FaCheck className="text-green-600 flex-shrink-0" />
+                      ) : (
+                        <FaTimes className="text-gray-400 flex-shrink-0" />
+                      )}
+                      <span>One lowercase (a-z)</span>
+                    </div>
+                    <div className={`flex items-center gap-2 text-xs ${passwordRequirements.hasNumber ? 'text-green-600' : 'text-gray-500'}`}>
+                      {passwordRequirements.hasNumber ? (
+                        <FaCheck className="text-green-600 flex-shrink-0" />
+                      ) : (
+                        <FaTimes className="text-gray-400 flex-shrink-0" />
+                      )}
+                      <span>One number (0-9)</span>
+                    </div>
+                    <div className={`flex items-center gap-2 text-xs sm:col-span-2 ${passwordRequirements.hasSpecialChar ? 'text-green-600' : 'text-gray-500'}`}>
+                      {passwordRequirements.hasSpecialChar ? (
+                        <FaCheck className="text-green-600 flex-shrink-0" />
+                      ) : (
+                        <FaTimes className="text-gray-400 flex-shrink-0" />
+                      )}
+                      <span>One special character (!@#$%...)</span>
+                    </div>
+                  </div>
+                  {isPasswordValid && (
+                    <div className="mt-2 pt-2 border-t border-green-200">
+                      <p className="text-xs font-semibold text-green-600 flex items-center gap-1">
+                        <FaCheck /> Password is strong!
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -215,19 +300,53 @@ const Register = () => {
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                  className={`w-full pl-12 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all ${
+                    formData.confirmPassword && passwordsMatch === false
+                      ? 'border-red-300 focus:ring-red-500' 
+                      : formData.confirmPassword && passwordsMatch === true
+                      ? 'border-green-300 focus:ring-green-500'
+                      : 'border-gray-300'
+                  }`}
                   placeholder="••••••••"
                   required
                   disabled={loading}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-accent transition-colors text-sm"
-                >
-                  {showConfirmPassword ? 'Hide' : 'Show'}
-                </button>
+                <div className="absolute inset-y-0 right-0 flex items-center gap-2 pr-4">
+                  {/* Password match indicator */}
+                  {formData.confirmPassword && passwordsMatch !== null && (
+                    <div className={`flex items-center ${passwordsMatch ? 'text-green-600' : 'text-red-500'}`}>
+                      {passwordsMatch ? (
+                        <FaCheck className="text-green-600" />
+                      ) : (
+                        <FaTimes className="text-red-500" />
+                      )}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="text-gray-400 hover:text-accent transition-colors text-sm"
+                  >
+                    {showConfirmPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </div>
+              {/* Password match message */}
+              {formData.confirmPassword && passwordsMatch !== null && (
+                <div className={`mt-2 text-xs flex items-center gap-1 ${
+                  passwordsMatch ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {passwordsMatch ? (
+                    <>
+                      <FaCheck /> Passwords match
+                    </>
+                  ) : (
+                    <>
+                      <FaTimes /> Passwords do not match
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <button

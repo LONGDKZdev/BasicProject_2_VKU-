@@ -11,7 +11,7 @@ export const fetchAllRoomBookingsForAdmin = async () => {
       .select(`
         *,
         rooms:room_id (room_no),
-        profiles:user_id (full_name, email)
+        users:user_id (id, full_name, email)
       `)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -28,7 +28,7 @@ export const fetchAllRestaurantBookingsForAdmin = async () => {
       .from('restaurant_bookings')
       .select(`
         *,
-        profiles:user_id (full_name, email)
+        users:user_id (id, full_name, email)
       `)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -45,7 +45,7 @@ export const fetchAllSpaBookingsForAdmin = async () => {
       .from('spa_bookings')
       .select(`
         *,
-        profiles:user_id (full_name, email)
+        users:user_id (id, full_name, email)
       `)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -278,11 +278,15 @@ export const deleteRoomAdmin = async (id) => {
 export const fetchUsersForAdmin = async () => {
   try {
     const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
+      .from('users')
+      .select('id, email, full_name, phone, is_admin, created_at, last_login')
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+    // Map to match expected structure with role field
+    return (data || []).map(user => ({
+      ...user,
+      role: user.is_admin ? 'admin' : 'user'
+    }));
   } catch (err) {
     console.error('Error fetching users:', err);
     throw err;
@@ -291,13 +295,21 @@ export const fetchUsersForAdmin = async () => {
 
 export const updateUserAdmin = async (id, userData) => {
   try {
+    // Map role back to is_admin if needed
+    const updateData = { ...userData };
+    if (userData.role !== undefined) {
+      updateData.is_admin = userData.role === 'admin';
+      delete updateData.role;
+    }
+    
     const { data, error } = await supabase
-      .from('profiles')
-      .update(userData)
+      .from('users')
+      .update(updateData)
       .eq('id', id)
-      .select();
+      .select('id, email, full_name, phone, is_admin, created_at, last_login');
     if (error) throw error;
-    return data?.[0] || null;
+    const updated = data?.[0];
+    return updated ? { ...updated, role: updated.is_admin ? 'admin' : 'user' } : null;
   } catch (err) {
     console.error('Error updating user:', err);
     throw err;
@@ -307,29 +319,32 @@ export const updateUserAdmin = async (id, userData) => {
 export const deleteUserProfileAdmin = async (id) => {
   try {
     const { error } = await supabase
-      .from('profiles')
+      .from('users')
       .delete()
       .eq('id', id);
     if (error) throw error;
     return true;
   } catch (err) {
-    console.error('Error deleting user profile:', err);
+    console.error('Error deleting user:', err);
     throw err;
   }
 };
 
 /**
- * ADMIN ACCOUNTS MANAGEMENT (Đã gộp vào profiles với is_admin)
+ * ADMIN ACCOUNTS MANAGEMENT (Sử dụng users table với is_admin)
  */
 export const fetchAdminAccountsForAdmin = async () => {
   try {
     const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
+      .from('users')
+      .select('id, email, full_name, phone, is_admin, created_at, last_login')
       .eq('is_admin', true)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+    return (data || []).map(user => ({
+      ...user,
+      role: 'admin'
+    }));
   } catch (err) {
     console.error('Error fetching admin accounts:', err);
     throw err;
@@ -339,7 +354,7 @@ export const fetchAdminAccountsForAdmin = async () => {
 export const createAdminAccount = async (adminData) => {
   try {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('users')
       .upsert({
         id: adminData.user_id,
         full_name: adminData.full_name,
@@ -348,9 +363,10 @@ export const createAdminAccount = async (adminData) => {
       }, {
         onConflict: 'id'
       })
-      .select();
+      .select('id, email, full_name, phone, is_admin, created_at, last_login');
     if (error) throw error;
-    return data?.[0] || null;
+    const created = data?.[0];
+    return created ? { ...created, role: 'admin' } : null;
   } catch (err) {
     console.error('Error creating admin account:', err);
     throw err;
@@ -360,15 +376,16 @@ export const createAdminAccount = async (adminData) => {
 export const updateAdminAccount = async (adminId, adminData) => {
   try {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('users')
       .update({
         full_name: adminData.full_name,
         phone: adminData.phone,
       })
       .eq('id', adminId)
-      .select();
+      .select('id, email, full_name, phone, is_admin, created_at, last_login');
     if (error) throw error;
-    return data?.[0] || null;
+    const updated = data?.[0];
+    return updated ? { ...updated, role: 'admin' } : null;
   } catch (err) {
     console.error('Error updating admin account:', err);
     throw err;
@@ -378,12 +395,13 @@ export const updateAdminAccount = async (adminId, adminData) => {
 export const deactivateAdminAccount = async (adminId) => {
   try {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('users')
       .update({ is_admin: false })
       .eq('id', adminId)
-      .select();
+      .select('id, email, full_name, phone, is_admin, created_at, last_login');
     if (error) throw error;
-    return data?.[0] || null;
+    const updated = data?.[0];
+    return updated ? { ...updated, role: 'user' } : null;
   } catch (err) {
     console.error('Error deactivating admin account:', err);
     throw err;

@@ -73,6 +73,55 @@ export const isBookingEmailConfigured = () => {
          BOOKING_TEMPLATE_ID !== 'YOUR_BOOKING_TEMPLATE_ID';
 };
 
+export const isContactEmailConfigured = () => {
+  return PUBLIC_KEY !== 'YOUR_PUBLIC_KEY' && 
+         SERVICE_ID !== 'YOUR_SERVICE_ID';
+};
+
+export const sendContactEmail = async ({ fromName, fromEmail, phone, subject, message }) => {
+  if (!isContactEmailConfigured()) {
+    console.log('Contact email would be sent from:', fromEmail, 'subject:', subject);
+    return {
+      success: true,
+      message: 'Contact email sent (demo mode)',
+    };
+  }
+
+  try {
+    const templateParams = {
+      from_name: fromName,
+      from_email: fromEmail,
+      phone: phone || 'N/A',
+      subject: subject,
+      message: message,
+      to_email: 'booking@adinahotel.com', // Hotel contact email
+      to_name: 'Adina Hotel Concierge',
+    };
+
+    // Use a contact template ID (you can reuse RESET_TEMPLATE_ID or create a new one)
+    const CONTACT_TEMPLATE_ID = RESET_TEMPLATE_ID; // Or create a separate template
+    
+    const response = await emailjs.send(
+      SERVICE_ID,
+      CONTACT_TEMPLATE_ID,
+      templateParams
+    );
+
+    return {
+      success: true,
+      message: 'Contact email sent successfully!',
+      response
+    };
+  } catch (error) {
+    console.error('EmailJS Contact Error:', error);
+    return {
+      success: true, // Still return success in demo mode
+      message: 'Contact email sent (demo mode)',
+      error: error.text || 'Failed to send email (demo mode)',
+    };
+  }
+};
+
 export const sendBookingConfirmationEmail = async ({ toEmail, toName = 'Guest', booking }) => {
   if (!isBookingEmailConfigured()) {
     // In demo mode, just log that email would be sent

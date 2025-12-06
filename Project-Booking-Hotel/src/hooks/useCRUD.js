@@ -4,9 +4,9 @@
  * Handles: Fetch, Create, Update, Delete with loading/error states
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { notifySuccess, notifyError } from '../utils/notifications';
-// supabase client import removed as it is now encapsulated in services
+import { supabase } from '../utils/supabaseClient';
 
 /**
  * Defines the required structure for the service layer API used by this hook.
@@ -24,9 +24,76 @@ import { notifySuccess, notifyError } from '../utils/notifications';
  * Reusable CRUD operations, decoupled from direct Supabase calls via a Service Layer API.
  * Handles: Fetch, Create, Update, Delete with loading/error states
  *
- * @param {CRUDServiceAPI} api - An object containing service functions (fetch, create, update, remove) and resourceName.
+ * Supports two usage patterns:
+ * 1. useCRUD({ resourceName, fetch, create, update, remove }) - With service API object
+ * 2. useCRUD(tableName, selectString) - Direct Supabase table access (legacy compatibility)
+ *
+ * @param {CRUDServiceAPI|string} apiOrTableName - Either an API object or table name string
+ * @param {string} [selectString] - Select string for Supabase query (when using table name)
  */
-export const useCRUD = ({ resourceName, fetch: fetchApi, create: createApi, update: updateApi, remove: removeApi }) => {
+export const useCRUD = (apiOrTableName, selectString = '*') => {
+  // Legacy mode: if first param is a string, create Supabase service automatically
+  if (typeof apiOrTableName === 'string') {
+    const tableName = apiOrTableName;
+    
+    const resourceName = tableName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    
+    // Wrap API functions in useMemo to prevent recreation on every render
+    const apiFunctions = useMemo(() => {
+      const fetchApi = async (filters = {}, orderBy = null) => {
+        let query = supabase.from(tableName).select(selectString);
+        
+        // Apply filters
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== null && value !== undefined && value !== '') {
+            query = query.eq(key, value);
+          }
+        });
+        
+        // Apply ordering
+        if (orderBy) {
+          query = query.order(orderBy.column || 'created_at', { ascending: orderBy.ascending !== false });
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      };
+      
+      const createApi = async (values) => {
+        const { data, error } = await supabase.from(tableName).insert([values]).select(selectString);
+        if (error) throw error;
+        return data?.[0] || null;
+      };
+      
+      const updateApi = async (id, values) => {
+        const { data, error } = await supabase.from(tableName).update(values).eq('id', id).select(selectString);
+        if (error) throw error;
+        return data?.[0] || null;
+      };
+      
+      const removeApi = async (id) => {
+        const { error } = await supabase.from(tableName).delete().eq('id', id);
+        if (error) throw error;
+      };
+      
+      return { fetchApi, createApi, updateApi, removeApi };
+    }, [tableName, selectString]); // Only recreate if tableName or selectString changes
+    
+    return useCRUDInternal({ 
+      resourceName, 
+      fetch: apiFunctions.fetchApi, 
+      create: apiFunctions.createApi, 
+      update: apiFunctions.updateApi, 
+      remove: apiFunctions.removeApi 
+    });
+  }
+  
+  // Modern mode: use provided API object
+  return useCRUDInternal(apiOrTableName);
+};
+
+const useCRUDInternal = ({ resourceName, fetch: fetchApi, create: createApi, update: updateApi, remove: removeApi }) => {
   const [data, setData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -48,7 +115,7 @@ export const useCRUD = ({ resourceName, fetch: fetchApi, create: createApi, upda
       // The service layer function handles the actual DB querying, filtering, and ordering
       const result = await fetchApi(filters, orderBy);
 
-      console.log(`✅ Fetched ${name}:`, result);
+      console.log(`✔ Fetched ${name}:`, result);
       setData(result || []);
       return result || [];
     } catch (err) {
@@ -59,7 +126,7 @@ export const useCRUD = ({ resourceName, fetch: fetchApi, create: createApi, upda
     } finally {
       setIsLoading(false);
     }
-  }, [name, fetchApi, setData]);
+  }, [name, fetchApi]); // Removed setData from dependencies (it's stable)
 
   // CREATE
   const create = useCallback(async (values, successMessage = `Created ${name} successfully`) => {

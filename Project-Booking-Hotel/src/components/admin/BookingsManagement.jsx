@@ -48,16 +48,16 @@ const BookingsManagement = () => {
           ...b,
           type: "room",
           item_name: b.rooms?.room_no || "Room N/A",
-          guestName: b.profiles?.full_name || "N/A",
-          guestEmail: b.profiles?.email || "N/A",
+          guestName: b.users?.full_name || b.user_name || "N/A",
+          guestEmail: b.users?.email || b.user_email || "N/A",
           totalPrice: parseFloat(b.total_amount || 0),
         })),
         ...restBookings.map((b) => ({
           ...b,
           type: "restaurant",
           item_name: "Restaurant Table",
-          guestName: b.profiles?.full_name || b.name || "N/A",
-          guestEmail: b.profiles?.email || b.email || "N/A",
+          guestName: b.users?.full_name || b.name || "N/A",
+          guestEmail: b.users?.email || b.email || "N/A",
           totalPrice: parseFloat(b.total_price || 0),
           checkIn: b.reservation_at,
           checkOut: b.reservation_at,
@@ -66,8 +66,8 @@ const BookingsManagement = () => {
           ...b,
           type: "spa",
           item_name: b.service_name || "Spa Service",
-          guestName: b.profiles?.full_name || b.name || "N/A",
-          guestEmail: b.profiles?.email || b.email || "N/A",
+          guestName: b.users?.full_name || b.name || "N/A",
+          guestEmail: b.users?.email || b.email || "N/A",
           totalPrice: parseFloat(b.total_price || 0),
           checkIn: b.appointment_at,
           checkOut: b.appointment_at,
@@ -84,38 +84,31 @@ const BookingsManagement = () => {
     }
   };
 
-  const handleStatusChange = async (booking) => {
-    const availableStatuses = statusOptions.map((opt) => opt.value);
-    const statusListPrompt = availableStatuses.join(", ");
+  const handleStatusChange = async (booking, newStatus) => {
+    if (!newStatus || newStatus === booking.status) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      const updateFn =
+        booking.type === "room"
+          ? updateRoomBookingStatus
+          : booking.type === "restaurant"
+          ? updateRestaurantBookingStatus
+          : updateSpaBookingStatus;
 
-    const newStatus = prompt(
-      `Change status for ${booking.confirmation_code || booking.id.substring(0, 8)} (current: ${booking.status}) to: (${statusListPrompt})`
-    );
-
-    if (newStatus && availableStatuses.includes(newStatus)) {
-      setLoading(true);
-      setError(null);
-      try {
-        const updateFn =
-          booking.type === "room"
-            ? updateRoomBookingStatus
-            : booking.type === "restaurant"
-            ? updateRestaurantBookingStatus
-            : updateSpaBookingStatus;
-
-        await updateFn(booking.id, newStatus);
-        setSuccess(`Booking status updated to ${newStatus}`);
-        await loadData();
-        setTimeout(() => setSuccess(null), 3000);
-        console.log(
-          `✅ Booking ${booking.confirmation_code || booking.id.substring(0, 8)} status updated to ${newStatus}`
-        );
-      } catch (err) {
-        console.error("❌ Error updating status:", err);
-        setError(err.message || "Failed to update booking status");
-      } finally {
-        setLoading(false);
-      }
+      await updateFn(booking.id, newStatus);
+      setSuccess(`Booking status updated to ${statusOptions.find(s => s.value === newStatus)?.label || newStatus}`);
+      await loadData();
+      setTimeout(() => setSuccess(null), 3000);
+      console.log(
+        `✅ Booking ${booking.confirmation_code || booking.id.substring(0, 8)} status updated to ${newStatus}`
+      );
+    } catch (err) {
+      console.error("❌ Error updating status:", err);
+      setError(err.message || "Failed to update booking status");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -415,14 +408,17 @@ const BookingsManagement = () => {
                         >
                           <FaEdit />
                         </button>
-                        <button
-                          onClick={() => handleStatusChange(booking)}
-                          className="p-2 text-orange-500 hover:bg-orange-50 rounded transition-colors disabled:opacity-50"
-                          title="Change Status"
+                        <select
+                          value={booking.status}
+                          onChange={(e) => handleStatusChange(booking, e.target.value)}
+                          className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-accent focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={loading}
+                          title="Change Status"
                         >
-                          <FaCheck />
-                        </button>
+                          {statusOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
                         <button
                           onClick={() => handleDelete(booking)}
                           className="p-2 text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"

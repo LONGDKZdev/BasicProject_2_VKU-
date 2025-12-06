@@ -4,6 +4,13 @@
 
 create extension if not exists "pgcrypto";
 
+-- ====== XÓA TYPES CŨ (nếu còn) ======
+-- Đảm bảo xóa types trước khi tạo lại để tránh lỗi "type already exists"
+drop type if exists public.room_status cascade;
+drop type if exists public.booking_status cascade;
+drop type if exists public.price_rule_type cascade;
+drop type if exists public.discount_type cascade;
+
 -- ====== ENUMS ======
 create type room_status as enum ('available', 'occupied', 'maintenance', 'cleaning');
 create type booking_status as enum ('pending', 'pending_payment', 'approved', 'rejected', 'confirmed', 'checked_in', 'checked_out', 'modified', 'completed', 'cancelled');
@@ -11,10 +18,30 @@ create type price_rule_type as enum ('weekend', 'holiday', 'seasonal', 'season')
 create type discount_type as enum ('percent', 'fixed');
 
 -- ====== FUNCTION UPDATE TIMESTAMP ======
+-- Function này chỉ update updated_at nếu có thay đổi thực sự để tránh vòng lặp
+-- CẢI THIỆN: Kiểm tra updated_at không thay đổi để tránh recursive trigger
 create or replace function public.trigger_set_timestamp()
-returns trigger language plpgsql as $$
+returns trigger 
+language plpgsql 
+security definer
+set search_path = public
+as $$
 begin
-  new.updated_at = now();
+  -- Chỉ xử lý UPDATE operations
+  if (TG_OP != 'UPDATE') then
+    return new;
+  end if;
+
+  -- QUAN TRỌNG: Nếu updated_at đã thay đổi, không update lại (tránh vòng lặp)
+  if (OLD.updated_at IS DISTINCT FROM NEW.updated_at) then
+    return new;
+  end if;
+
+  -- Chỉ update updated_at nếu có cột khác thay đổi
+  if (OLD IS DISTINCT FROM NEW) then
+    new.updated_at = now();
+  end if;
+
   return new;
 end$$;
 
@@ -128,7 +155,24 @@ create table if not exists public.price_rules (
   updated_at timestamptz not null default now(),
   constraint chk_price_rule_dates check (end_date is null or start_date is null or end_date >= start_date)
 );
-create trigger set_price_rules_updated_at before update on public.price_rules for each row execute procedure public.trigger_set_timestamp();
+-- Trigger cho price_rules - CHỈ update updated_at khi có thay đổi thực sự
+create trigger set_price_rules_updated_at 
+  before update on public.price_rules 
+  for each row 
+  when (
+    OLD.rule_type IS DISTINCT FROM NEW.rule_type OR
+    OLD.room_type_id IS DISTINCT FROM NEW.room_type_id OR
+    OLD.start_date IS DISTINCT FROM NEW.start_date OR
+    OLD.end_date IS DISTINCT FROM NEW.end_date OR
+    OLD.apply_fri IS DISTINCT FROM NEW.apply_fri OR
+    OLD.apply_sat IS DISTINCT FROM NEW.apply_sat OR
+    OLD.apply_sun IS DISTINCT FROM NEW.apply_sun OR
+    OLD.price IS DISTINCT FROM NEW.price OR
+    OLD.priority IS DISTINCT FROM NEW.priority OR
+    OLD.description IS DISTINCT FROM NEW.description OR
+    OLD.is_active IS DISTINCT FROM NEW.is_active
+  )
+  execute procedure public.trigger_set_timestamp();
 
 -- ====== 8. PROMOTIONS ======
 create table if not exists public.promotions (
@@ -145,6 +189,21 @@ create table if not exists public.promotions (
   updated_at timestamptz not null default now(),
   constraint chk_promo_dates check (end_date >= start_date)
 );
+-- Trigger cho promotions - CHỈ update updated_at khi có thay đổi thực sự
+create trigger set_promotions_updated_at 
+  before update on public.promotions 
+  for each row 
+  when (
+    OLD.code IS DISTINCT FROM NEW.code OR
+    OLD.name IS DISTINCT FROM NEW.name OR
+    OLD.description IS DISTINCT FROM NEW.description OR
+    OLD.discount_kind IS DISTINCT FROM NEW.discount_kind OR
+    OLD.discount_value IS DISTINCT FROM NEW.discount_value OR
+    OLD.start_date IS DISTINCT FROM NEW.start_date OR
+    OLD.end_date IS DISTINCT FROM NEW.end_date OR
+    OLD.is_active IS DISTINCT FROM NEW.is_active
+  )
+  execute procedure public.trigger_set_timestamp();
 
 -- ====== 9. BOOKINGS ======
 create table if not exists public.bookings (

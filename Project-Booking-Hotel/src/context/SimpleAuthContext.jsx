@@ -303,12 +303,54 @@ export const SimpleAuthContext = ({ children }) => {
   }, [user?.id]);
 
   /**
-   * OAuth Login (không hỗ trợ trong simple auth)
+   * OAuth Login với C# API và Fallback
    */
   const loginWithOAuth = useCallback(async (provider) => {
-    setError(`${provider} login is not available in simple auth mode`);
-    return { success: false, error: `${provider} login is not available` };
-  }, []);
+    try {
+      setError('');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      
+      // Thử gọi C# API để lấy OAuth URL
+      try {
+        const urlsResponse = await fetch(`${API_URL}/api/auth/oauth/urls`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (urlsResponse.ok) {
+          const urls = await urlsResponse.json();
+          
+          // Redirect đến OAuth provider
+          if (provider === 'google' && urls.googleAuthUrl) {
+            window.location.href = urls.googleAuthUrl;
+            return { success: true, redirecting: true };
+          } else if (provider === 'facebook' && urls.facebookAuthUrl) {
+            window.location.href = urls.facebookAuthUrl;
+            return { success: true, redirecting: true };
+          }
+        }
+      } catch (apiError) {
+        console.warn('C# API not available, falling back to Supabase OAuth:', apiError);
+      }
+      
+      // Fallback: Nếu C# API không chạy, dùng Supabase OAuth
+      const { supabase } = await import('../utils/supabaseClient');
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (err) {
+      console.error('OAuth login error:', err);
+      setError(err.message);
+      return { success: false, error: err.message };
+    }
+  }, [setError]);
 
   /**
    * Helper functions

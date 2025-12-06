@@ -190,9 +190,12 @@ export const fetchRoomsWithImages = async () => {
 
 export const checkRoomAvailability = async (roomId, checkIn, checkOut, excludeBookingId = null) => {
   try {
+    // Calculate cutoff time: pending_payment bookings older than 15 minutes are considered expired
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    
     let query = supabase
       .from('bookings')
-      .select('id')
+      .select('id, status, created_at')
       .eq('room_id', roomId)
       .neq('status', 'cancelled')
       .lt('check_in', checkOut)
@@ -204,10 +207,37 @@ export const checkRoomAvailability = async (roomId, checkIn, checkOut, excludeBo
     
     const { data, error } = await query;
     if (error) throw error;
-    return (data && data.length === 0);
+    
+    if (!data || data.length === 0) {
+      return true; // No bookings found, room is available
+    }
+    
+    // Filter out bookings that don't block availability:
+    // 1. confirmed or checked_in bookings (always block)
+    // 2. pending_payment bookings that are recent (within 15 minutes) - block
+    // 3. pending_payment bookings older than 15 minutes - don't block (expired)
+    // 4. cancelled bookings - don't block (already filtered in query)
+    const blockingBookings = data.filter(booking => {
+      if (booking.status === 'confirmed' || booking.status === 'checked_in') {
+        return true; // Always block
+      }
+      
+      if (booking.status === 'pending_payment') {
+        // Only block if created within last 15 minutes
+        const createdAt = new Date(booking.created_at);
+        const cutoffTime = new Date(fifteenMinutesAgo);
+        return createdAt > cutoffTime;
+      }
+      
+      // Other statuses (e.g., 'checked_out') don't block
+      return false;
+    });
+    
+    // If no blocking bookings found, room is available
+    return blockingBookings.length === 0;
   } catch (err) {
     console.error('Error checking availability:', err);
-    return true;
+    return true; // On error, assume room is available (safer for user experience)
   }
 };
 
@@ -243,6 +273,21 @@ export const fetchPromotions = async () => {
     return data || [];
   } catch (err) {
     console.error('Error fetching promotions:', err);
+    return [];
+  }
+};
+
+export const fetchHolidayCalendar = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('holiday_calendar')
+      .select('*')
+      .eq('is_active', true)
+      .order('holiday_date', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching holiday calendar:', err);
     return [];
   }
 };
@@ -357,6 +402,7 @@ export default {
   checkRoomAvailability,
   fetchPriceRules,
   fetchPromotions,
+  fetchHolidayCalendar,
   fetchRoomReviews,
   createReview,
   hasUserBookedRoomType,

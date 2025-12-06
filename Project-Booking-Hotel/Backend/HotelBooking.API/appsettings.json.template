@@ -1,0 +1,34 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "Supabase": {
+    "Url": "YOUR_SUPABASE_URL",
+    "Key": "YOUR_SUPABASE_ANON_KEY"
+  },
+  "ApiBaseUrl": "http://localhost:5000",
+  "OAuth": {
+    "Google": {
+      "ClientId": "YOUR_GOOGLE_CLIENT_ID",
+      "ClientSecret": "YOUR_GOOGLE_CLIENT_SECRET"
+    },
+    "Facebook": {
+      "AppId": "YOUR_FACEBOOK_APP_ID",
+      "AppSecret": "YOUR_FACEBOOK_APP_SECRET"
+    },
+    "RedirectUri": "http://localhost:5173"
+  },
+  "Email": {
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": "587",
+    "SmtpUser": "YOUR_EMAIL@gmail.com",
+    "SmtpPassword": "YOUR_APP_PASSWORD",
+    "FromEmail": "YOUR_EMAIL@gmail.com",
+    "FromName": "Hotel Booking"
+  }
+}
+

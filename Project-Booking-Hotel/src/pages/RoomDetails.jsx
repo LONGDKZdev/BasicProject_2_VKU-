@@ -159,10 +159,7 @@ const RoomDetails = () => {
   };
 
   const validateBooking = () => {
-    if (!isAuthenticated()) {
-      showToast({ type: 'info', message: 'Please sign in to book this room.' });
-      return false;
-    }
+    // Check dates
     if (!reservation.checkIn || !reservation.checkOut) {
       showToast({ type: 'error', message: 'Select both check-in and check-out dates.' });
       return false;
@@ -175,6 +172,26 @@ const RoomDetails = () => {
       showToast({ type: 'error', message: `This category hosts up to ${maxGuests} guests.` });
       return false;
     }
+    
+    // Check authentication or guest info
+    if (!isAuthenticated()) {
+      // Guest booking: require guest information
+      if (!reservation.guestName || !reservation.guestName.trim()) {
+        showToast({ type: 'error', message: 'Please provide your name for guest booking.' });
+        return false;
+      }
+      if (!reservation.guestEmail || !reservation.guestEmail.trim()) {
+        showToast({ type: 'error', message: 'Please provide your email for guest booking.' });
+        return false;
+      }
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(reservation.guestEmail)) {
+        showToast({ type: 'error', message: 'Please provide a valid email address.' });
+        return false;
+      }
+    }
+    
     return true;
   };
 
@@ -182,23 +199,38 @@ const RoomDetails = () => {
     e.preventDefault();
     if (!validateBooking()) return;
 
+    // Determine if this is a guest booking or authenticated booking
+    const isGuestBooking = !isAuthenticated();
+    
     const result = bookRoom({
       roomId: room.id,
       roomName: room.name,
-      userId: user?.id,
-      userName: user?.name || user?.email?.split('@')[0],
-      userEmail: user?.email,
+      userId: isGuestBooking ? null : user?.id, // null for guest bookings
+      userName: isGuestBooking ? reservation.guestName : (user?.name || user?.email?.split('@')[0]),
+      userEmail: isGuestBooking ? reservation.guestEmail : user?.email,
       checkIn: reservation.checkIn,
       checkOut: reservation.checkOut,
       adults: reservation.adults,
       kids: reservation.kids,
       note: reservation.note,
-      promoCode: reservation.promoCode, // Truyền promo code
+      promoCode: reservation.promoCode,
+      // Guest booking fields
+      guestName: isGuestBooking ? reservation.guestName : null,
+      guestEmail: isGuestBooking ? reservation.guestEmail : null,
+      guestPhone: isGuestBooking ? reservation.guestPhone : null,
     });
 
     if (result?.success) {
       setCurrentBooking(result.booking);
       setShowQRPayment(true);
+      
+      // Show promo error as warning if booking succeeded but promo failed
+      if (result.promoError) {
+        showToast({
+          type: 'warning',
+          message: result.promoError + '. Booking created without promotion.',
+        });
+      }
     } else {
       showToast({
         type: 'error',
@@ -401,7 +433,7 @@ const RoomDetails = () => {
                       >
                         {[5, 4, 3, 2, 1].map(score => (
                           <option key={score} value={score}>
-                            {score} sao
+                            {score} Star
                           </option>
                         ))}
                       </select>
@@ -515,6 +547,47 @@ const RoomDetails = () => {
                     )}
                   </div>
                 </div>
+                {/* Guest Booking Fields - Only show if not authenticated */}
+                {!isAuthenticated() && (
+                  <>
+                    <div className='border-t border-accent/20 pt-4 mt-4'>
+                      <p className='text-sm font-semibold text-primary mb-3'>Guest Information</p>
+                    </div>
+                    <div>
+                      <label className='text-xs uppercase tracking-[2px] text-primary/60'>Full Name *</label>
+                      <input
+                        type='text'
+                        required
+                        value={reservation.guestName}
+                        onChange={(e) => handleReservationChange('guestName', e.target.value)}
+                        className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
+                        placeholder='Your full name'
+                      />
+                    </div>
+                    <div>
+                      <label className='text-xs uppercase tracking-[2px] text-primary/60'>Email *</label>
+                      <input
+                        type='email'
+                        required
+                        value={reservation.guestEmail}
+                        onChange={(e) => handleReservationChange('guestEmail', e.target.value)}
+                        className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
+                        placeholder='your.email@example.com'
+                      />
+                    </div>
+                    <div>
+                      <label className='text-xs uppercase tracking-[2px] text-primary/60'>Phone (Optional)</label>
+                      <input
+                        type='tel'
+                        value={reservation.guestPhone}
+                        onChange={(e) => handleReservationChange('guestPhone', e.target.value)}
+                        className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
+                        placeholder='+84 123 456 789'
+                      />
+                    </div>
+                  </>
+                )}
+
                 <div>
                   <label className='text-xs uppercase tracking-[2px] text-primary/60'>Promo Code (Optional)</label>
                   <input
@@ -537,8 +610,13 @@ const RoomDetails = () => {
                 </div>
 
                 <button type='submit' className='btn btn-primary w-full uppercase tracking-[4px]'>
-                  Confirm reservation
+                  {isAuthenticated() ? 'Confirm reservation' : 'Continue as guest'}
                 </button>
+                {!isAuthenticated() && (
+                  <p className='text-xs text-primary/60 text-center mt-2'>
+                    Or <Link to='/login' className='text-accent underline'>sign in</Link> to save your booking history
+                  </p>
+                )}
               </form>
 
               {pricingPreview?.breakdown?.length > 0 && (

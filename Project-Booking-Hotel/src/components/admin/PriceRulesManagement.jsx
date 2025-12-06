@@ -56,10 +56,11 @@ const PriceRulesManagement = () => {
     }
   };
 
-  // Fetch price rules on mount
+  // Fetch price rules on mount (only once)
   useEffect(() => {
     fetchData({}, { column: 'priority', ascending: true });
-  }, [fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only fetch once on mount
 
   const handleSubmit = async (e) => {
     e.preventDefault();

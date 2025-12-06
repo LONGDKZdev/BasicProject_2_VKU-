@@ -51,6 +51,64 @@ export const updateBookingStatus = async (bookingId, status, extraData = {}) => 
   }
 };
 
+export const createBookingItems = async (bookingId, roomId, roomTypeId, pricingBreakdown) => {
+  try {
+    if (!pricingBreakdown || pricingBreakdown.length === 0) {
+      console.warn('No pricing breakdown provided for booking items');
+      return [];
+    }
+    
+    // Create one item per night
+    const items = pricingBreakdown.map((night) => ({
+      booking_id: bookingId,
+      room_id: roomId,
+      room_type_id: roomTypeId,
+      price_per_night: night.rate,
+      nights: 1, // Each breakdown item is 1 night
+      amount: night.rate,
+    }));
+    
+    const { data, error } = await supabase
+      .from('booking_items')
+      .insert(items)
+      .select();
+    if (error) throw error;
+    console.log(`✅ Created ${data.length} booking items for booking ${bookingId}`);
+    return data || [];
+  } catch (err) {
+    console.error('Error creating booking items:', err);
+    return [];
+  }
+};
+
+export const createBookingPricingBreakdown = async (bookingId, pricingBreakdown) => {
+  try {
+    if (!pricingBreakdown || pricingBreakdown.length === 0) {
+      console.warn('No pricing breakdown provided');
+      return [];
+    }
+    
+    // Create one record per night with rate_type
+    const breakdownRecords = pricingBreakdown.map((night) => ({
+      booking_id: bookingId,
+      stay_date: night.date, // Format: YYYY-MM-DD
+      rate_type: night.label || 'Standard rate', // e.g., "Weekend rate", "Holiday rate"
+      rate: night.rate,
+    }));
+    
+    const { data, error } = await supabase
+      .from('booking_pricing_breakdown')
+      .insert(breakdownRecords)
+      .select();
+    if (error) throw error;
+    console.log(`✅ Created ${data.length} pricing breakdown records for booking ${bookingId}`);
+    return data || [];
+  } catch (err) {
+    console.error('Error creating booking pricing breakdown:', err);
+    return [];
+  }
+};
+
 /**
  * Service layer for restaurant booking operations
  */
@@ -252,6 +310,8 @@ export default {
     createBooking,
     fetchUserBookings,
     updateBookingStatus,
+    createBookingItems,
+    createBookingPricingBreakdown,
     createRestaurantBooking,
     updateRestaurantBookingStatus,
     fetchUserRestaurantBookings,

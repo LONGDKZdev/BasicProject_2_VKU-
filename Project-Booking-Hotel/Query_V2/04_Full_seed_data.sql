@@ -2,9 +2,12 @@
 -- 04_FULL_SEED_DATA.SQL
 -- =====================================================
 
--- NOTE: Users are created via seed-users.js (Node.js script)
--- This file seeds static data only (amenities, rooms, bookings)
--- To create test users with proper password hashing, run: node seed-users.js
+-- NOTE: File này seed tất cả dữ liệu bao gồm:
+-- - Amenities, Room Types, Rooms, Images
+-- - Reviews, Price Rules, Promotions
+-- - Users (admin@hotel.com / admin123 và longvh@gmail.com / user123)
+-- - Bookings test data
+-- - Holiday calendar
 
 -- 1. AMENITIES
 insert into public.amenities (name, icon_name) values
@@ -100,20 +103,57 @@ insert into public.promotions (code, name, description, discount_kind, discount_
 on conflict (code) do nothing;
 
 -- 7. USERS TEST DATA (Admin và User mẫu)
--- LƯU Ý: Password hash phải được tạo bằng hàm hashPassword() trong simpleAuthService.js
--- Cách đơn giản nhất: Đăng ký admin qua UI (/register), sau đó chạy:
---   UPDATE public.users SET is_admin = true WHERE email = 'admin@hotel.com';
--- 
--- Hoặc tạo hash trong browser console và update:
---   1. Mở F12 → Console
---   2. Copy code từ FIX_ADMIN_PASSWORD.md
---   3. Chạy để lấy hash
---   4. Update vào database
---
--- Tạm thời để NULL, user sẽ đăng ký qua UI
--- KHÔNG INSERT USERS Ở ĐÂY - Để user đăng ký qua UI để có password hash đúng
--- Sau khi đăng ký admin qua UI, chạy:
---   UPDATE public.users SET is_admin = true WHERE email = 'admin@hotel.com';
+-- Password hash format: "salt:hash" (SHA-256 với salt)
+-- Hash được tạo bằng function SQL để đảm bảo format đúng
+
+-- Function để hash password (tương tự JavaScript hashPassword)
+-- Format: "salt:hash" với salt 32 ký tự hex (16 bytes) và hash 64 ký tự hex (32 bytes SHA-256)
+CREATE OR REPLACE FUNCTION public.hash_password_sql(password text, salt_hex text)
+RETURNS text
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  hash_hex text;
+BEGIN
+  -- Hash password + salt bằng SHA-256 (giống JavaScript: password + saltHex)
+  -- pgcrypto extension đã được tạo trong 02_Int_schema.sql
+  SELECT encode(digest(password || salt_hex, 'sha256'), 'hex') INTO hash_hex;
+  RETURN salt_hex || ':' || hash_hex;
+END;
+$$;
+
+-- Insert users với password hash
+-- admin@hotel.com / admin123 (is_admin = true)
+-- longvh@gmail.com / user123 (is_admin = false)
+-- Salt: 32 ký tự hex (16 bytes) - giống format trong JavaScript
+INSERT INTO public.users (email, password_hash, full_name, is_admin, is_email_verified, newsletter, language) VALUES
+  (
+    'admin@hotel.com',
+    public.hash_password_sql('admin123', 'a1b2c3d4e5f6789012345678901234ab'), -- Salt 32 hex chars
+    'Admin User',
+    true,
+    true,
+    true,
+    'en'
+  ),
+  (
+    'longvh@gmail.com',
+    public.hash_password_sql('user123', 'b2c3d4e5f6789012345678901234abcd'), -- Salt 32 hex chars
+    'Long Võ',
+    false,
+    true,
+    true,
+    'vi'
+  )
+ON CONFLICT (email) DO UPDATE SET
+  password_hash = EXCLUDED.password_hash,
+  is_admin = EXCLUDED.is_admin,
+  is_email_verified = EXCLUDED.is_email_verified,
+  full_name = EXCLUDED.full_name,
+  language = EXCLUDED.language;
+
+-- Giữ lại function để có thể dùng sau này nếu cần
+-- Nếu muốn xóa: DROP FUNCTION IF EXISTS public.hash_password_sql(text, text);
 
 -- 8. BOOKINGS TEST DATA
 -- Lưu ý: User IDs sẽ được lấy từ public.users

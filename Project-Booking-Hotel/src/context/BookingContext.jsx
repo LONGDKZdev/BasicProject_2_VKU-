@@ -291,11 +291,14 @@ export const BookingProvider = ({ children }) => {
         console.error('❌ Failed to update Supabase:', err);
       });
       
-      // Automatically send invoice email
+      // Automatically send invoice email (async, don't block)
       sendBookingConfirmationEmail({
         toEmail: booking.userEmail || booking.email,
         toName: booking.userName || booking.name,
         booking: confirmedBooking
+      }).catch((err) => {
+        console.warn('Failed to send booking confirmation email:', err);
+        // Don't block the flow if email fails
       });
       
       return confirmedBooking;
@@ -323,11 +326,14 @@ export const BookingProvider = ({ children }) => {
         console.error('❌ Failed to update Supabase:', err);
       });
       
-      // Automatically send invoice email
+      // Automatically send invoice email (async, don't block)
       sendBookingConfirmationEmail({
         toEmail: booking.userEmail || booking.email,
         toName: booking.userName || booking.name,
         booking: confirmedBooking
+      }).catch((err) => {
+        console.warn('Failed to send booking confirmation email:', err);
+        // Don't block the flow if email fails
       });
       
       return confirmedBooking;
@@ -355,11 +361,14 @@ export const BookingProvider = ({ children }) => {
         console.error('❌ Failed to update Supabase:', err);
       });
       
-      // Automatically send invoice email
+      // Automatically send invoice email (async, don't block)
       sendBookingConfirmationEmail({
         toEmail: booking.userEmail || booking.email,
         toName: booking.userName || booking.name,
         booking: confirmedBooking
+      }).catch((err) => {
+        console.warn('Failed to send booking confirmation email:', err);
+        // Don't block the flow if email fails
       });
       
       return confirmedBooking;

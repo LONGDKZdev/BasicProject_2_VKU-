@@ -258,10 +258,27 @@ export const requestPasswordReset = async (email) => {
         expires_at: expiresAt.toISOString(),
       });
 
-    // TODO: Gửi email với reset code (có thể dùng emailService.js)
-    console.log('Password reset code for', email, ':', resetCode);
+    // Gửi email với reset code
+    try {
+      const { sendResetCodeEmail, isEmailConfigured } = await import('../utils/emailService');
+      
+      if (isEmailConfigured()) {
+        // Email service đã được config - gửi email thật
+        const emailResult = await sendResetCodeEmail(email, resetCode);
+        if (!emailResult.success) {
+          console.warn('Failed to send reset email, but code was saved:', emailResult.error);
+        }
+      } else {
+        // Email service chưa config - log ra console (cho development)
+        console.log('Password reset code for', email, ':', resetCode);
+        console.log('Note: Email service not configured. In production, configure EmailJS to send emails automatically.');
+      }
+    } catch (emailError) {
+      console.warn('Email service error (code still saved):', emailError);
+      // Vẫn trả về success vì code đã được lưu vào DB
+    }
 
-    return { success: true, resetCode }; // Trả về code để test (trong production không nên)
+    return { success: true, resetCode }; // Trả về code để test (trong production không nên nếu email đã được gửi)
   } catch (err) {
     console.error('Password reset error:', err);
     return { success: false, error: err.message || 'Failed to request password reset' };

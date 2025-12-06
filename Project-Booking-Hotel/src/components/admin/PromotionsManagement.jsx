@@ -21,7 +21,7 @@ const PromotionsManagement = () => {
     resetFormData
   } = useModalForm({
     code: '',
-    discount_type: 'percentage',
+    discount_type: 'percentage', // UI field, will map to discount_kind
     discount_value: '',
     start_date: '',
     end_date: '',
@@ -29,17 +29,19 @@ const PromotionsManagement = () => {
     is_active: true
   });
 
-  // Fetch promotions on mount
+  // Fetch promotions on mount (only once)
   useEffect(() => {
     fetchData({}, { column: 'code', ascending: true });
-  }, [fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only fetch once on mount
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const values = {
         code: formData.code,
-        discount_type: formData.discount_type,
+        name: formData.code, // Add name field required by schema
+        discount_kind: formData.discount_type === 'percentage' ? 'percent' : 'fixed', // Map to schema field
         discount_value: parseFloat(formData.discount_value),
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
@@ -61,7 +63,12 @@ const PromotionsManagement = () => {
   };
 
   const handleEdit = (promotion) => {
-    openEditModal(promotion);
+    // Map discount_kind back to discount_type for UI
+    const mappedPromo = {
+      ...promotion,
+      discount_type: promotion.discount_kind === 'percent' ? 'percentage' : 'fixed'
+    };
+    openEditModal(mappedPromo);
   };
 
   const handleDelete = async (id) => {
@@ -73,7 +80,8 @@ const PromotionsManagement = () => {
   };
 
   const formatDiscount = (promo) => {
-    if (promo.discount_type === 'percentage') {
+    const discountType = promo.discount_kind || promo.discount_type;
+    if (discountType === 'percent' || discountType === 'percentage') {
       return `${promo.discount_value}%`;
     }
     return `$${promo.discount_value}`;
@@ -96,17 +104,17 @@ const PromotionsManagement = () => {
       )
     },
     {
-      key: 'discount_type',
+      key: 'discount_kind',
       label: 'Discount Type',
       render: (value) => {
-        const type = discountTypes.find(t => t.value === value);
+        const type = discountTypes.find(t => t.value === (value === 'percent' ? 'percentage' : 'fixed'));
         return <span className="text-sm">{type?.label || value}</span>;
       }
     },
     {
       key: 'discount_value',
       label: 'Value',
-      render: (value, row) => <span className="font-semibold text-accent">{formatDiscount(row)}</span>
+      render: (value, row) => <span className="font-semibold text-accent">{formatDiscount({ ...row, discount_type: row.discount_kind === 'percent' ? 'percentage' : 'fixed' })}</span>
     },
     {
       key: 'start_date',

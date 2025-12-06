@@ -1,0 +1,12 @@
+{
+  "name": "hotel-booking-backend",
+  "version": "1.0.0",
+  "description": "Scripts to run C# backend",
+  "scripts": {
+    "start": "dotnet run --project HotelBooking.API/HotelBooking.API.csproj",
+    "watch": "dotnet watch run --project HotelBooking.API/HotelBooking.API.csproj",
+    "restore": "dotnet restore HotelBooking.API/HotelBooking.API.csproj",
+    "build": "dotnet build HotelBooking.API/HotelBooking.API.csproj"
+  }
+}
+

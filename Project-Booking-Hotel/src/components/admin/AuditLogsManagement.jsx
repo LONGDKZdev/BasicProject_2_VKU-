@@ -9,14 +9,15 @@ const AuditLogsManagement = () => {
 
   useEffect(() => {
     fetchData({}, { column: 'created_at', ascending: false });
-  }, [fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only fetch once on mount
 
-  // Table columns configuration
+  // Table columns configuration - using correct schema field names
   const columns = [
     {
       key: 'actor',
       label: 'Actor',
-      render: (value) => <span className="font-semibold">{value || 'System'}</span>
+      render: (value) => <span className="font-semibold">{value ? `User ${value.substring(0, 8)}` : 'System'}</span>
     },
     {
       key: 'action',
@@ -33,18 +34,18 @@ const AuditLogsManagement = () => {
       )
     },
     {
-      key: 'table_name',
+      key: 'target_table',
       label: 'Table',
       render: (value) => <span className="font-mono text-sm">{value || '-'}</span>
     },
     {
-      key: 'record_id',
+      key: 'target_id',
       label: 'Record ID',
-      render: (value) => <span className="text-sm">{value || '-'}</span>
+      render: (value) => <span className="text-sm">{value ? value.substring(0, 8) + '...' : '-'}</span>
     },
     {
-      key: 'changes',
-      label: 'Changes',
+      key: 'meta',
+      label: 'Details',
       render: (value) => <span className="text-sm text-gray-600">{value ? 'Yes' : 'No'}</span>
     },
     {

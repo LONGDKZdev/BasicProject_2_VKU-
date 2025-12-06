@@ -26,6 +26,37 @@ const ForgotPassword = () => {
       return;
     }
 
+    // Thử gọi C# API trước
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    
+    try {
+      const apiResponse = await fetch(`${API_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+
+      if (apiResponse.ok) {
+        const apiResult = await apiResponse.json();
+        if (apiResult.success) {
+          const code = apiResult.resetCode || 'N/A';
+          setResetCode(code);
+          setToast({
+            message: 'Password reset email sent successfully!',
+            type: 'success'
+          });
+          setSuccessMessage(`A password reset code has been sent to your email. Code expires in 15 minutes.`);
+          setTimeout(() => {
+            navigate(`/reset-password?email=${encodeURIComponent(email)}&code=${code}`);
+          }, 3000);
+          return;
+        }
+      }
+    } catch (apiError) {
+      console.warn('C# API not available, using fallback:', apiError);
+    }
+
+    // Fallback: Dùng logic hiện tại
     const result = await resetPassword(email);
     
     if (result.success) {
@@ -37,7 +68,6 @@ const ForgotPassword = () => {
       });
       setSuccessMessage(`A password reset code has been generated. Use this code to reset your password. Code expires in 1 hour.`);
       
-      // Auto redirect to reset password page with code
       setTimeout(() => {
         navigate(`/reset-password?email=${encodeURIComponent(email)}&code=${code}`);
       }, 3000);

@@ -23,3 +23,18 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Backend C# files
+Backend/**/bin/
+Backend/**/obj/
+Backend/**/appsettings.json
+Backend/**/appsettings.*.json
+Backend/**/*.user
+Backend/**/*.suo
+Backend/**/.vs/
+
+# Sensitive files
+*.key
+*.pem
+*.pfx
+secrets.json
