@@ -1,214 +1,56 @@
-# 🚀 HƯỚNG DẪN SETUP SAU KHI CLONE TỪ GITHUB
+# 🚀 HƯỚNG DẪN CHẠY DỰ ÁN (QUICK START)
 
-## 📋 YÊU CẦU HỆ THỐNG
+Chào mừng bạn đến với dự án **Hotel Booking System**.
+Dự án sử dụng kiến trúc Hybrid: **ReactJS** (Frontend) + **.NET 8** (Backend) + **Supabase** (Database).
 
-### **Bắt buộc:**
-- ✅ **Node.js** >= 18.x (cho Frontend React)
-- ✅ **.NET 8 SDK** (cho Backend C# API)
-- ✅ **Git** (đã có nếu clone được)
-
-### **Tùy chọn:**
-- VSCode với C# extension (để debug backend)
-- PostgreSQL client (để chạy SQL scripts)
+Để chạy dự án, bạn chỉ cần làm theo đúng 3 bước dưới đây.
 
 ---
 
-## 🔧 BƯỚC 1: CÀI ĐẶT DEPENDENCIES
-
-### **1.1. Frontend (React)**
-
-```bash
-# Đã có node_modules? Copy vào thư mục project
-# Nếu chưa có, chạy:
-npm install
-# hoặc
-yarn install
-```
-
-### **1.2. Backend (C#)**
-
-```bash
-cd Backend/HotelBooking.API
-dotnet restore
-```
-
-**Lưu ý:** Không cần copy gì, `dotnet restore` sẽ tự động tải packages.
+## ✅ BƯỚC 1: CÀI ĐẶT MÔI TRƯỜNG
+Đảm bảo máy bạn đã cài sẵn:
+- [Node.js](https://nodejs.org/) (Phiên bản 18 trở lên)
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Git
 
 ---
 
-## 🔐 BƯỚC 2: CẤU HÌNH ENVIRONMENT VARIABLES
+## 🔑 BƯỚC 2: NHẬP "CHÌA KHÓA" (QUAN TRỌNG NHẤT)
+Vì lý do bảo mật, các file chứa mật khẩu không được đưa lên GitHub.
+**Hãy liên hệ chủ dự án để nhận 2 file cấu hình:** `appsettings.json` và `.env`.
 
-### **2.1. Frontend (.env)**
+Sau khi nhận được, hãy copy chúng vào đúng vị trí sau:
 
-Tạo file `.env` trong thư mục root:
+| Tên file | Copy vào thư mục nào? |
+| :--- | :--- |
+| **`.env`** | Thư mục gốc (Nơi có file `package.json`) |
+| **`appsettings.json`** | Thư mục `Backend/HotelBooking.API/` |
 
-```bash
-# Supabase
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-
-# C# Backend API (optional, nếu dùng OAuth)
-VITE_API_URL=http://localhost:5000
-```
-
-### **2.2. Backend (appsettings.json)**
-
-**QUAN TRỌNG:** File `appsettings.json` đã bị gitignore, bạn cần tạo mới!
-
-1. Copy template:
-```bash
-cd Backend/HotelBooking.API
-copy appsettings.json.template appsettings.json
-```
-
-2. Điền thông tin vào `appsettings.json`:
-
-```json
-{
-  "Supabase": {
-    "Url": "YOUR_SUPABASE_URL",
-    "Key": "YOUR_SUPABASE_ANON_KEY"
-  },
-  "OAuth": {
-    "Google": {
-      "ClientId": "YOUR_GOOGLE_CLIENT_ID",
-      "ClientSecret": "YOUR_GOOGLE_CLIENT_SECRET"
-    },
-    "Facebook": {
-      "AppId": "YOUR_FACEBOOK_APP_ID",
-      "AppSecret": "YOUR_FACEBOOK_APP_SECRET"
-    }
-  },
-  "Email": {
-    "SmtpHost": "smtp.gmail.com",
-    "SmtpPort": "587",
-    "SmtpUser": "YOUR_EMAIL@gmail.com",
-    "SmtpPassword": "YOUR_APP_PASSWORD",
-    "FromEmail": "YOUR_EMAIL@gmail.com",
-    "FromName": "Hotel Booking"
-  }
-}
-```
-
-**Lấy thông tin ở đâu:**
-- **Supabase:** https://app.supabase.com → Project Settings → API
-- **Google OAuth:** https://console.cloud.google.com → APIs & Services → Credentials
-- **Facebook OAuth:** https://developers.facebook.com → My Apps
-- **Email:** Gmail App Password (xem hướng dẫn trong `Backend/SETUP_INSTRUCTIONS.md`)
+> ⚠️ **Lưu ý:** Nếu thiếu 2 file này, hệ thống sẽ báo lỗi ngay lập tức.
 
 ---
 
-## 🗄️ BƯỚC 3: SETUP DATABASE
+## 🗄️ BƯỚC 3: CÀI ĐẶT DATABASE (SUPABASE)
+*(Nếu bạn dùng chung Database với team thì bỏ qua bước này. Nếu bạn muốn tạo Database riêng thì làm như sau)*
 
-### **3.1. Chạy SQL Scripts**
-
-Chạy các file SQL theo thứ tự trong Supabase SQL Editor:
-
-1. `Query_V2/01_Clean_Data.sql` - Xóa tất cả (nếu cần)
-2. `Query_V2/02_Int_schema.sql` - Tạo schema
-3. `Query_V2/03_Setup_RLS.sql` - Setup permissions
-4. `Query_V2/04_Full_seed_data.sql` - Seed data
-
-**Lưu ý:** 
-- Chạy từng file một
-- Đợi mỗi file chạy xong trước khi chạy file tiếp theo
-- File 01 chỉ chạy khi cần reset database
+1. Vào [Supabase Dashboard](https://supabase.com/dashboard) tạo Project mới.
+2. Vào mục **SQL Editor**, chạy lần lượt các file trong thư mục `Query_V2` theo thứ tự:
+   1. `01_Clean_Data.sql`
+   2. `02_Int_schema.sql`
+   3. `03_Setup_RLS.sql`
+   4. `04_Full_seed_data.sql`
 
 ---
 
-## 🚀 BƯỚC 4: CHẠY ỨNG DỤNG
+## 🚀 BƯỚC 4: KHỞI ĐỘNG
+Tại thư mục gốc, click đúp vào file:
+👉 **`RunProject.bat`**
 
-### **4.1. Chạy Frontend**
+Hệ thống sẽ tự động:
+1. Kiểm tra file cấu hình.
+2. Cài đặt thư viện (nếu chạy lần đầu).
+3. Mở 2 cửa sổ:
+   - **Backend:** http://localhost:5000
+   - **Frontend:** http://localhost:5173
 
-```bash
-# Terminal 1
-npm run dev
-# hoặc
-yarn dev
-```
-
-Frontend chạy tại: `http://localhost:5173`
-
-### **4.2. Chạy Backend (Optional - chỉ cần nếu dùng OAuth)**
-
-```bash
-# Terminal 2
-cd Backend/HotelBooking.API
-dotnet run
-```
-
-Backend chạy tại:
-- HTTP: `http://localhost:5000`
-- HTTPS: `https://localhost:5001`
-- Swagger: `https://localhost:5001/swagger`
-
-**Lưu ý:** Backend chỉ cần thiết nếu bạn muốn dùng:
-- Google OAuth login
-- Facebook OAuth login
-- Email password reset
-
-Nếu không dùng OAuth, có thể bỏ qua backend!
-
----
-
-## ✅ CHECKLIST SAU KHI CLONE
-
-- [ ] Đã cài Node.js và npm/yarn
-- [ ] Đã cài .NET 8 SDK (nếu dùng backend)
-- [ ] Đã chạy `npm install` hoặc copy `node_modules`
-- [ ] Đã chạy `dotnet restore` (nếu dùng backend)
-- [ ] Đã tạo file `.env` với Supabase credentials
-- [ ] Đã tạo file `appsettings.json` từ template (nếu dùng backend)
-- [ ] Đã chạy SQL scripts trong Supabase
-- [ ] Đã test frontend chạy được
-- [ ] Đã test backend chạy được (nếu dùng)
-
----
-
-## 🐛 TROUBLESHOOTING
-
-### **Lỗi: "Cannot find module"**
-```bash
-# Xóa node_modules và cài lại
-rm -rf node_modules
-npm install
-```
-
-### **Lỗi: "Supabase connection failed"**
-- Kiểm tra `.env` có đúng Supabase URL và Key không
-- Kiểm tra Supabase project có đang active không
-
-### **Lỗi: "Backend build failed"**
-```bash
-cd Backend/HotelBooking.API
-dotnet clean
-dotnet restore
-dotnet build
-```
-
-### **Lỗi: "Port already in use"**
-```bash
-# Windows
-netstat -ano | findstr :5000
-taskkill /PID <PID> /F
-
-# Mac/Linux
-lsof -ti:5000 | xargs kill
-```
-
----
-
-## 📝 GHI CHÚ
-
-- **node_modules:** Có thể copy từ máy khác, nhưng khuyến nghị chạy `npm install` để đảm bảo đúng version
-- **Backend:** Chỉ cần thiết nếu dùng OAuth, không bắt buộc
-- **Database:** Phải chạy SQL scripts trước khi dùng app
-- **Credentials:** Không commit vào git, chỉ lưu local
-
----
-
-**Xem thêm:**
-- `Backend/SETUP_INSTRUCTIONS.md` - Hướng dẫn setup backend chi tiết
-- `Backend/OAUTH_INTEGRATION_GUIDE.md` - Hướng dẫn OAuth
-- `Query_V2/README.md` (nếu có) - Hướng dẫn database
-
+**Hoàn tất!** Giờ bạn có thể truy cập Web và code.

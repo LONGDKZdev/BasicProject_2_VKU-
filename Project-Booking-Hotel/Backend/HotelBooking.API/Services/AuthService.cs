@@ -1,6 +1,6 @@
 using HotelBooking.API.Models;
 using System.Text.Json;
-using System.Net.Http.Headers;
+//using System.Net.Http.Headers;
 
 namespace HotelBooking.API.Services;
 
@@ -361,7 +361,7 @@ public class AuthService : IAuthService
         }
     }
 
-    public async Task<EmailResult> VerifyCodeAndResetPassword(string email, string code, string newPassword)
+    public Task<EmailResult> VerifyCodeAndResetPassword(string email, string code, string newPassword)
     {
         try
         {
@@ -370,26 +370,26 @@ public class AuthService : IAuthService
             
             if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 8)
             {
-                return new EmailResult
+                return Task.FromResult(new EmailResult
                 {
                     Success = false,
                     Message = "Password must be at least 8 characters long"
-                };
+                });
             }
 
             // TODO: Update password in database (Supabase)
             // For now, return success
             
-            return new EmailResult
+            return Task.FromResult(new EmailResult
             {
                 Success = true,
                 Message = "Password reset successfully"
-            };
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error verifying code and resetting password");
-            throw;
+            return Task.FromException<EmailResult>(ex);
         }
     }
 
