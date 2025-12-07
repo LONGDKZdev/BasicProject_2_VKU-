@@ -1,4 +1,5 @@
 namespace HotelBooking.API.Models;
+using System.Text.Json.Serialization;
 
 public class GoogleLoginRequest
 {
@@ -13,6 +14,18 @@ public class FacebookLoginRequest
 public class ForgotPasswordRequest
 {
     public string Email { get; set; } = string.Empty;
+}
+
+public class SendVerificationCodeRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class VerifyCodeAndResetPasswordRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }
 
 public class AuthResult
@@ -48,6 +61,7 @@ public class OAuthUrls
 // Internal models for OAuth providers
 internal class GoogleTokenInfo
 {
+    [JsonPropertyName("aud")]
     public string? Audience { get; set; }
     public string? Email { get; set; }
     public string? Name { get; set; }

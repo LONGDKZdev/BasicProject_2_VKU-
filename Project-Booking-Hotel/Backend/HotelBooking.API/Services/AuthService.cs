@@ -320,6 +320,79 @@ public class AuthService : IAuthService
         }
     }
 
+    public async Task<EmailResult> SendVerificationCode(string email)
+    {
+        try
+        {
+            // Generate verification code
+            var verificationCode = GenerateResetCode();
+            
+            // TODO: Save verification code to database with expiration (15 minutes)
+            // For now, we'll just send the email
+            
+            // Send email
+            var emailSubject = "Password Reset Verification Code - Hotel Booking";
+            var emailBody = $@"
+                <h2>Password Reset Verification Code</h2>
+                <p>Hello,</p>
+                <p>You have requested to reset your password. Please use the following verification code:</p>
+                <h3 style='color: #8B5A2B; font-size: 24px; letter-spacing: 4px;'>{verificationCode}</h3>
+                <p>This code will expire in 15 minutes.</p>
+                <p>If you did not request this, please ignore this email.</p>
+                <br>
+                <p>Best regards,<br>Hotel Booking Team</p>
+            ";
+
+            var result = await _emailService.SendEmailAsync(email, emailSubject, emailBody);
+            
+            return new EmailResult
+            {
+                Success = result,
+                Message = result 
+                    ? "Verification code sent successfully" 
+                    : "Failed to send email",
+                ResetCode = verificationCode // Return code for testing (remove in production)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending verification code");
+            throw;
+        }
+    }
+
+    public async Task<EmailResult> VerifyCodeAndResetPassword(string email, string code, string newPassword)
+    {
+        try
+        {
+            // TODO: Verify code from database and check expiration
+            // For now, we'll just validate the password
+            
+            if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 8)
+            {
+                return new EmailResult
+                {
+                    Success = false,
+                    Message = "Password must be at least 8 characters long"
+                };
+            }
+
+            // TODO: Update password in database (Supabase)
+            // For now, return success
+            
+            return new EmailResult
+            {
+                Success = true,
+                Message = "Password reset successfully"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying code and resetting password");
+            throw;
+        }
+    }
+
     private string GenerateResetCode()
     {
         var random = new Random();

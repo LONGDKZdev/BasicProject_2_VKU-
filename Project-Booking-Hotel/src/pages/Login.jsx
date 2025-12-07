@@ -75,18 +75,33 @@ const Login = () => {
     }
 
     setError('');
-    const result = await loginWithOAuth(provider);
     
-    if (result.success) {
-      setToast({
-        message: `Welcome, ${result.user.name || result.user.email}!`,
-        type: 'success'
-      });
-      setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 1500);
-    } else {
-      setError(`Failed to login with ${provider}`);
+    try {
+      const result = await loginWithOAuth(provider);
+      
+      if (result.success) {
+        // Nếu đang redirect, không cần hiển thị toast
+        if (result.redirecting) {
+          // Đang redirect đến OAuth provider, không cần làm gì
+          return;
+        }
+        
+        // Nếu có user data (trường hợp hiếm)
+        if (result.user) {
+          setToast({
+            message: `Welcome, ${result.user.name || result.user.email}!`,
+            type: 'success'
+          });
+          setTimeout(() => {
+            navigate('/', { replace: true });
+          }, 1500);
+        }
+      } else {
+        setError(result.error || `Failed to login with ${provider}`);
+      }
+    } catch (err) {
+      console.error('OAuth login error:', err);
+      setError(`Failed to login with ${provider}. Please try again.`);
     }
   };
 

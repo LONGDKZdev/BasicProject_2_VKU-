@@ -6,8 +6,11 @@ import { Link } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Toast from '../components/Toast';
-import { FaSuitcaseRolling, FaCalendarAlt, FaUserCircle, FaCamera, FaEdit, FaTimes } from 'react-icons/fa';
+import { FaSuitcaseRolling, FaCalendarAlt, FaUserCircle, FaCamera, FaEdit, FaTimes, FaLock, FaEnvelope } from 'react-icons/fa';
 import { LogoDark } from '../assets';
+import { sendVerificationCode, verifyCodeAndResetPassword } from '../services/csharpApiService';
+import { hashPassword } from '../services/simpleAuthService';
+import { supabase } from '../utils/supabaseClient';
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
@@ -60,6 +63,12 @@ const UserDashboard = () => {
     bio: '',
     newsletter: true,
   });
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [passwordResetStep, setPasswordResetStep] = useState('email'); // 'email', 'code', 'newPassword'
+  const [verificationCode, setVerificationCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordResetLoading, setPasswordResetLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -484,6 +493,225 @@ const UserDashboard = () => {
       <button type='submit' className='btn btn-primary'>
         Save profile
       </button>
+
+      {/* Password Reset Section */}
+      <div className='mt-8 pt-8 border-t border-[#eadfcf]'>
+        <div className='flex items-center justify-between mb-4'>
+          <div>
+            <h3 className='font-primary text-xl mb-1'>Change Password</h3>
+            <p className='text-sm text-primary/70'>Reset your password using email verification</p>
+          </div>
+          <button
+            type='button'
+            onClick={() => {
+              setShowPasswordReset(!showPasswordReset);
+              if (!showPasswordReset) {
+                setPasswordResetStep('email');
+                setVerificationCode('');
+                setNewPassword('');
+                setConfirmNewPassword('');
+              }
+            }}
+            className='btn btn-secondary btn-sm'
+          >
+            {showPasswordReset ? 'Cancel' : 'Reset Password'}
+          </button>
+        </div>
+
+        {showPasswordReset && (
+          <div className='space-y-4 bg-gray-50 p-6 rounded-lg border border-[#eadfcf]'>
+            {passwordResetStep === 'email' && (
+              <div className='space-y-4'>
+                <div>
+                  <label className='block text-sm font-semibold mb-2'>Email Address</label>
+                  <div className='relative'>
+                    <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
+                      <FaEnvelope className='text-gray-400' />
+                    </div>
+                    <input
+                      type='email'
+                      value={user?.email || ''}
+                      disabled
+                      className='w-full pl-12 pr-4 py-3 border border-[#eadfcf] bg-gray-100 rounded-lg'
+                    />
+                  </div>
+                  <p className='text-xs text-primary/70 mt-2'>
+                    A verification code will be sent to this email address.
+                  </p>
+                </div>
+                <button
+                  type='button'
+                  onClick={async () => {
+                    if (!user?.email) return;
+                    setPasswordResetLoading(true);
+                    try {
+                      const result = await sendVerificationCode(user.email);
+                      if (result.success) {
+                        showToast({ type: 'success', message: 'Verification code sent to your email!' });
+                        setPasswordResetStep('code');
+                      } else {
+                        showToast({ type: 'error', message: result.message || 'Failed to send verification code' });
+                      }
+                    } catch (error) {
+                      showToast({ type: 'error', message: 'Error sending verification code' });
+                    } finally {
+                      setPasswordResetLoading(false);
+                    }
+                  }}
+                  disabled={passwordResetLoading}
+                  className='btn btn-primary w-full'
+                >
+                  {passwordResetLoading ? 'Sending...' : 'Send Verification Code'}
+                </button>
+              </div>
+            )}
+
+            {passwordResetStep === 'code' && (
+              <div className='space-y-4'>
+                <div>
+                  <label className='block text-sm font-semibold mb-2'>Verification Code</label>
+                  <input
+                    type='text'
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder='Enter 6-digit code'
+                    maxLength={6}
+                    className='w-full border border-[#eadfcf] px-4 py-3 focus:outline-none focus:border-accent text-center text-2xl tracking-widest'
+                  />
+                  <p className='text-xs text-primary/70 mt-2'>
+                    Enter the 6-digit code sent to your email.
+                  </p>
+                </div>
+                <div className='flex gap-3'>
+                  <button
+                    type='button'
+                    onClick={() => setPasswordResetStep('email')}
+                    className='btn btn-secondary flex-1'
+                  >
+                    Back
+                  </button>
+                  <button
+                    type='button'
+                    onClick={async () => {
+                      if (verificationCode.length !== 6) {
+                        showToast({ type: 'error', message: 'Please enter a valid 6-digit code' });
+                        return;
+                      }
+                      setPasswordResetStep('newPassword');
+                    }}
+                    className='btn btn-primary flex-1'
+                  >
+                    Verify Code
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {passwordResetStep === 'newPassword' && (
+              <div className='space-y-4'>
+                <div>
+                  <label className='block text-sm font-semibold mb-2'>New Password</label>
+                  <div className='relative'>
+                    <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
+                      <FaLock className='text-gray-400' />
+                    </div>
+                    <input
+                      type='password'
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder='Enter new password (min 8 characters)'
+                      minLength={8}
+                      className='w-full pl-12 pr-4 py-3 border border-[#eadfcf] focus:outline-none focus:border-accent'
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className='block text-sm font-semibold mb-2'>Confirm New Password</label>
+                  <div className='relative'>
+                    <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
+                      <FaLock className='text-gray-400' />
+                    </div>
+                    <input
+                      type='password'
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder='Confirm new password'
+                      minLength={8}
+                      className='w-full pl-12 pr-4 py-3 border border-[#eadfcf] focus:outline-none focus:border-accent'
+                    />
+                  </div>
+                  {confirmNewPassword && newPassword !== confirmNewPassword && (
+                    <p className='text-xs text-red-600 mt-1'>Passwords do not match</p>
+                  )}
+                </div>
+                <div className='flex gap-3'>
+                  <button
+                    type='button'
+                    onClick={() => setPasswordResetStep('code')}
+                    className='btn btn-secondary flex-1'
+                  >
+                    Back
+                  </button>
+                  <button
+                    type='button'
+                    onClick={async () => {
+                      if (!newPassword || newPassword.length < 8) {
+                        showToast({ type: 'error', message: 'Password must be at least 8 characters' });
+                        return;
+                      }
+                      if (newPassword !== confirmNewPassword) {
+                        showToast({ type: 'error', message: 'Passwords do not match' });
+                        return;
+                      }
+                      if (!user?.email) {
+                        showToast({ type: 'error', message: 'User email not found' });
+                        return;
+                      }
+
+                      setPasswordResetLoading(true);
+                      try {
+                        // Verify code and reset password via C# API
+                        const result = await verifyCodeAndResetPassword(user.email, verificationCode, newPassword);
+                        
+                        if (result.success) {
+                          // Update password in Supabase database
+                          const passwordHash = await hashPassword(newPassword);
+                          const { error: updateError } = await supabase
+                            .from('users')
+                            .update({ password_hash: passwordHash })
+                            .eq('id', user.id);
+
+                          if (updateError) {
+                            throw new Error('Failed to update password in database');
+                          }
+
+                          showToast({ type: 'success', message: 'Password reset successfully!' });
+                          setShowPasswordReset(false);
+                          setPasswordResetStep('email');
+                          setVerificationCode('');
+                          setNewPassword('');
+                          setConfirmNewPassword('');
+                        } else {
+                          showToast({ type: 'error', message: result.message || 'Failed to reset password' });
+                        }
+                      } catch (error) {
+                        console.error('Error resetting password:', error);
+                        showToast({ type: 'error', message: 'Error resetting password. Please try again.' });
+                      } finally {
+                        setPasswordResetLoading(false);
+                      }
+                    }}
+                    disabled={passwordResetLoading || newPassword !== confirmNewPassword || newPassword.length < 8}
+                    className='btn btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed'
+                  >
+                    {passwordResetLoading ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </form>
   );
 

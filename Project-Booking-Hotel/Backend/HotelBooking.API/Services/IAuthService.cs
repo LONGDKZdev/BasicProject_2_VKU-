@@ -9,6 +9,8 @@ public interface IAuthService
     Task<AuthResult> HandleGoogleCallback(string code);
     Task<AuthResult> HandleFacebookCallback(string code);
     Task<EmailResult> SendPasswordResetEmail(string email);
+    Task<EmailResult> SendVerificationCode(string email);
+    Task<EmailResult> VerifyCodeAndResetPassword(string email, string code, string newPassword);
     OAuthUrls GetOAuthUrls();
 }
 

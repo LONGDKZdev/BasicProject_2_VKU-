@@ -17,6 +17,7 @@ import {
   CleanupPage,
   NotFound404,
   AuthCallback,
+  SetPassword,
 } from "./pages";
 import "./style/chatbox.css";
 
@@ -28,6 +29,7 @@ const AppContent = () => {
   const isRegisterPage = location.pathname === "/register";
   const isForgotPasswordPage = location.pathname === "/forgot-password";
   const isResetPasswordPage = location.pathname === "/reset-password";
+  const isSetPasswordPage = location.pathname === "/set-password";
   const isUserDashboardPage = location.pathname === "/account";
   const shouldHideHeaderFooter =
     isAdminPage ||
@@ -35,6 +37,7 @@ const AppContent = () => {
     isRegisterPage ||
     isForgotPasswordPage ||
     isResetPasswordPage ||
+    isSetPasswordPage ||
     isUserDashboardPage;
 
   return (
@@ -60,6 +63,7 @@ const AppContent = () => {
         <Route path={"/register"} element={<Register />} />
         <Route path={"/forgot-password"} element={<ForgotPassword />} />
         <Route path={"/reset-password"} element={<ResetPassword />} />
+        <Route path={"/set-password"} element={<SetPassword />} />
         <Route path={"/auth/callback"} element={<AuthCallback />} />
         <Route path={"/admin/login"} element={<Login />} />
         <Route

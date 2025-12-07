@@ -13,3 +13,4 @@ export { default as SpaPage } from "./SpaPage";
 export { default as CleanupPage } from "./CleanupPage";
 export { default as NotFound404 } from "./NotFound404";
 export { default as AuthCallback } from "./AuthCallback";
+export { default as SetPassword } from "./SetPassword";

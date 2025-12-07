@@ -149,5 +149,42 @@ public class AuthController : ControllerBase
             return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString(ex.Message)}");
         }
     }
+
+    /// <summary>
+    /// Send verification code to email for password reset
+    /// </summary>
+    [HttpPost("send-verification-code")]
+    public async Task<IActionResult> SendVerificationCode([FromBody] SendVerificationCodeRequest request)
+    {
+        try
+        {
+            var result = await _authService.SendVerificationCode(request.Email);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending verification code");
+            // Don't reveal if email exists or not for security
+            return Ok(new { success = true, message = "If the email exists, a verification code has been sent." });
+        }
+    }
+
+    /// <summary>
+    /// Verify code and reset password
+    /// </summary>
+    [HttpPost("verify-code-reset-password")]
+    public async Task<IActionResult> VerifyCodeAndResetPassword([FromBody] VerifyCodeAndResetPasswordRequest request)
+    {
+        try
+        {
+            var result = await _authService.VerifyCodeAndResetPassword(request.Email, request.Code, request.NewPassword);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying code and resetting password");
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
 }
 

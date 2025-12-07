@@ -91,3 +91,47 @@ export const generateConfirmationCode = async (type = 'room') => {
   }
 };
 
+/**
+ * Send verification code to email for password reset
+ */
+export const sendVerificationCode = async (email) => {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/send-verification-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error sending verification code via C# API:', error);
+    return { success: false, message: 'Failed to send verification code.' };
+  }
+};
+
+/**
+ * Verify code and reset password
+ */
+export const verifyCodeAndResetPassword = async (email, code, newPassword) => {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/verify-code-reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, newPassword })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error verifying code and resetting password via C# API:', error);
+    return { success: false, message: 'Failed to reset password.' };
+  }
+};
+

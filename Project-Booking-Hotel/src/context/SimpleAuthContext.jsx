@@ -303,37 +303,50 @@ export const SimpleAuthContext = ({ children }) => {
   }, [user?.id]);
 
   /**
-   * OAuth Login với C# API và Fallback
+   * OAuth Login với C# API và Fallback Supabase
+   * Tự động fallback nếu C# API không khả dụng
    */
   const loginWithOAuth = useCallback(async (provider) => {
     try {
       setError('');
+      setLoading(true);
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       
-      // Thử gọi C# API để lấy OAuth URL
+      // Bước 1: Thử gọi C# API để lấy OAuth URL (với timeout)
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 giây timeout
+        
         const urlsResponse = await fetch(`${API_URL}/api/auth/oauth/urls`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (urlsResponse.ok) {
           const urls = await urlsResponse.json();
           
-          // Redirect đến OAuth provider
+          // Redirect đến OAuth provider qua C# API
           if (provider === 'google' && urls.googleAuthUrl) {
             window.location.href = urls.googleAuthUrl;
-            return { success: true, redirecting: true };
+            return { success: true, redirecting: true, method: 'csharp' };
           } else if (provider === 'facebook' && urls.facebookAuthUrl) {
             window.location.href = urls.facebookAuthUrl;
-            return { success: true, redirecting: true };
+            return { success: true, redirecting: true, method: 'csharp' };
           }
         }
       } catch (apiError) {
-        console.warn('C# API not available, falling back to Supabase OAuth:', apiError);
+        // C# API không khả dụng, fallback sang Supabase
+        if (apiError.name === 'AbortError') {
+          console.warn('C# API timeout, falling back to Supabase OAuth');
+        } else {
+          console.warn('C# API not available, falling back to Supabase OAuth:', apiError);
+        }
       }
       
-      // Fallback: Nếu C# API không chạy, dùng Supabase OAuth
+      // Bước 2: Fallback - Dùng Supabase OAuth nếu C# API không khả dụng
       const { supabase } = await import('../utils/supabaseClient');
       
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -343,14 +356,19 @@ export const SimpleAuthContext = ({ children }) => {
         }
       });
 
-      if (error) throw error;
-      return { success: true, data };
+      if (error) {
+        throw new Error(`Supabase OAuth error: ${error.message}`);
+      }
+      
+      return { success: true, data, method: 'supabase' };
     } catch (err) {
       console.error('OAuth login error:', err);
       setError(err.message);
       return { success: false, error: err.message };
+    } finally {
+      setLoading(false);
     }
-  }, [setError]);
+  }, [setError, setLoading]);
 
   /**
    * Helper functions
@@ -366,10 +384,16 @@ export const SimpleAuthContext = ({ children }) => {
   const clearError = useCallback(() => {
     setError(null);
   }, []);
+  const loginManual = useCallback((userData) => {
+    setUser(userData);
+    saveSession(userData); // Lưu vào LocalStorage
+  }, []);
 
   const shareWithChildren = {
     // State
     user,
+    setUser,
+    loginManual,
     loading,
     error,
     session: user ? { user } : null, // Compatible với code cũ

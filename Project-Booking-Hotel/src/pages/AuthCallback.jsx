@@ -7,7 +7,7 @@ import { FaSpinner, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 const AuthCallback = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { setUser } = useAuth();
+  const { setUser, loginManual } = useAuth();
   const [status, setStatus] = useState('processing');
   const [message, setMessage] = useState('Processing login...');
 
@@ -28,64 +28,123 @@ const AuthCallback = () => {
         if (errorFromQuery) {
           setStatus('error');
           setMessage(errorFromQuery);
-          setTimeout(() => navigate('/login'), 3000);
+          setTimeout(() => navigate('/login'), 5000);
           return;
         }
 
         if (emailFromQuery) {
           // User info đã được C# API xử lý và redirect về đây
-          const { data: existingUser, error: dbError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', emailFromQuery)
-            .single();
-
-          if (dbError && dbError.code !== 'PGRST116') {
-            console.error('Database error:', dbError);
-          }
-
-          if (!existingUser) {
-            const { data: newUser, error: createError } = await supabase
+          try {
+            const { data: existingUser, error: dbError } = await supabase
               .from('users')
-              .insert([{
-                email: emailFromQuery,
-                full_name: nameFromQuery || emailFromQuery,
-                is_admin: false,
-                is_email_verified: true,
-                password_hash: 'oauth_user'
-              }])
-              .select()
+              .select('*')
+              .eq('email', emailFromQuery)
               .single();
 
-            if (createError) {
-              console.error('Error creating user:', createError);
-            } else if (newUser) {
-              setUser(newUser);
+            // Nếu có lỗi và không phải "not found", throw error
+            if (dbError) {
+              if (dbError.code === 'PGRST116') {
+                // User không tồn tại, sẽ tạo mới
+              } else {
+                console.error('Database error when finding user:', dbError);
+                throw new Error(`Database error: ${dbError.message}`);
+              }
+            }
+
+            if (!existingUser) {
+              // Tạo user mới với password_hash = 'oauth_user' (cần set password sau)
+              const { data: newUser, error: createError } = await supabase
+                .from('users')
+                .insert([{
+                  email: emailFromQuery,
+                  full_name: nameFromQuery || emailFromQuery,
+                  is_admin: false,
+                  is_email_verified: true,
+                  password_hash: 'oauth_user' // Đánh dấu cần set password
+                }])
+                .select()
+                .single();
+
+              if (createError) {
+                console.error('Error creating user:', createError);
+                throw new Error(`Unable to create account: ${createError.message}`);
+              }
+
+              if (!newUser) {
+                throw new Error('Account creation failed - no data received');
+              }
+
+              // Set user vào context
+              try {
+                setUser(newUser);
+              } catch (setUserError) {
+                console.error('Error setting user in context:', setUserError);
+                // Vẫn tiếp tục vì user đã được tạo
+              }
+
+              // Redirect đến SetPassword để đặt mật khẩu
+              setStatus('success');
+              setMessage('Login successful! Please set password.');
+              setTimeout(() => {
+                navigate(`/set-password?email=${encodeURIComponent(emailFromQuery)}`);
+              }, 3000);
+              return;
+            } else {
+              // User đã tồn tại
+              // Update last_login
+              const { error: updateError } = await supabase
+                .from('users')
+                .update({ last_login: new Date().toISOString() })
+                .eq('id', existingUser.id);
+
+              if (updateError) {
+                console.warn('Error updating last_login:', updateError);
+                // Không throw, chỉ log warning
+              }
+
+              // Set user vào context
+              try {
+                setUser(existingUser);
+              } catch (setUserError) {
+                console.error('Error setting user in context:', setUserError);
+                throw new Error('Error When Login');
+              }
+
+              // Check xem user có cần set password không (trim để tránh whitespace)
+              const passwordHash = String(existingUser.password_hash || '').trim();
+              if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
+                setStatus('success');
+                setMessage('Login successful! Please set password.');
+                setTimeout(() => {
+                  navigate(`/set-password?email=${encodeURIComponent(emailFromQuery)}`);
+                }, 3000);
+                return;
+              }
+
+              // User đã có password, login thành công
               setStatus('success');
               setMessage('Login successful!');
-              setTimeout(() => navigate('/'), 2000);
+              setTimeout(() => navigate('/'), 5000);
               return;
             }
-          } else {
-            await supabase
-              .from('users')
-              .update({ last_login: new Date().toISOString() })
-              .eq('id', existingUser.id);
-            
-            setUser(existingUser);
-            setStatus('success');
-            setMessage('Login successful!');
-            setTimeout(() => navigate('/'), 2000);
-            return;
+          } catch (userError) {
+            console.error('Error processing user:', userError);
+            throw userError; // Re-throw để catch ở ngoài
           }
         }
 
-        // Thử xử lý qua C# API trước (nếu có code)
+        // Ưu tiên: Thử xử lý qua C# API trước (nếu có code)
         if (code) {
           try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 giây timeout
+            
             const response = await fetch(`${API_URL}/api/auth/${provider}/callback?code=${code}`, {
-              method: 'GET'
+              method: 'GET',
+              signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
 
             // C# API sẽ redirect, không cần xử lý response ở đây
             if (response.redirected) {
@@ -108,7 +167,7 @@ const AuthCallback = () => {
                 }
 
                 if (!existingUser) {
-                  // Tạo user mới
+                  // Tạo user mới với password_hash = 'oauth_user' (cần set password sau)
                   const { data: newUser, error: createError } = await supabase
                     .from('users')
                     .insert([{
@@ -116,41 +175,84 @@ const AuthCallback = () => {
                       full_name: result.user.name || result.user.email,
                       is_admin: false,
                       is_email_verified: true,
-                      password_hash: 'oauth_user'
+                      password_hash: 'oauth_user' // Đánh dấu cần set password
                     }])
                     .select()
                     .single();
 
                   if (createError) {
                     console.error('Error creating user:', createError);
-                  } else if (newUser) {
-                    setUser(newUser);
-                    setStatus('success');
-                    setMessage('Login successful!');
-                    setTimeout(() => navigate('/'), 2000);
-                    return;
+                    throw new Error(`Unable to create account: ${createError.message}`);
                   }
+
+                  if (!newUser) {
+                    throw new Error('Account creation failed - no data received');
+                  }
+
+                  // Set user vào context
+                  try {
+                    setUser(newUser);
+                  } catch (setUserError) {
+                    console.error('Error setting user in context:', setUserError);
+                  }
+
+                  // Redirect đến SetPassword để đặt mật khẩu
+                  setStatus('success');
+                  setMessage('Login successful! Please set password.');
+                  setTimeout(() => {
+                    navigate(`/set-password?email=${encodeURIComponent(result.user.email)}`);
+                  }, 3000);
+                  return;
                 } else {
                   // Update last_login
-                  await supabase
+                  const { error: updateError } = await supabase
                     .from('users')
                     .update({ last_login: new Date().toISOString() })
                     .eq('id', existingUser.id);
-                  
-                  setUser(existingUser);
+
+                  if (updateError) {
+                    console.warn('Error updating last_login:', updateError);
+                  }
+
+                  // Set user vào context
+                  try {
+                    setUser(existingUser);
+                  } catch (setUserError) {
+                    console.error('Error setting user in context:', setUserError);
+                    throw new Error('Error when logging in');
+                  }
+
+                  // Check xem user có cần set password không (trim để tránh whitespace)
+                  const passwordHash = String(existingUser.password_hash || '').trim();
+                  if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
+                    setStatus('success');
+                    setMessage('Login successful! Please set password.');
+                    setTimeout(() => {
+                      navigate(`/set-password?email=${encodeURIComponent(result.user.email)}`);
+                    }, 3000);
+                    return;
+                  }
+
+                  // User đã có password, login thành công
                   setStatus('success');
                   setMessage('Login successful!');
-                  setTimeout(() => navigate('/'), 2000);
+                  setTimeout(() => navigate('/'), 5000);
                   return;
                 }
               }
             }
           } catch (apiError) {
-            console.warn('C# API callback failed, trying Supabase fallback:', apiError);
+            // C# API không khả dụng hoặc timeout, fallback sang Supabase
+            if (apiError.name === 'AbortError') {
+              console.warn('C# API timeout, falling back to Supabase OAuth');
+            } else {
+              console.warn('C# API callback failed, trying Supabase fallback:', apiError);
+            }
+            // Tiếp tục với Supabase fallback
           }
         }
 
-        // Fallback: Xử lý qua Supabase Auth
+        // Fallback: Xử lý qua Supabase Auth (chỉ khi không có code hoặc C# API fail)
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -172,6 +274,7 @@ const AuthCallback = () => {
           }
 
           if (!existingUser) {
+            // Tạo user mới với password_hash = 'oauth_user' (cần set password sau)
             const { data: newUser, error: createError } = await supabase
               .from('users')
               .insert([{
@@ -179,30 +282,68 @@ const AuthCallback = () => {
                 full_name: supabaseUser.user_metadata?.full_name || supabaseUser.email,
                 is_admin: false,
                 is_email_verified: true,
-                password_hash: 'oauth_user'
+                password_hash: 'oauth_user' // Đánh dấu cần set password
               }])
               .select()
               .single();
 
             if (createError) {
               console.error('Error creating user:', createError);
-            } else if (newUser) {
-              setUser(newUser);
-              setStatus('success');
-              setMessage('Login successful!');
-              setTimeout(() => navigate('/'), 2000);
-              return;
+              throw new Error(`Unable to create account: ${createError.message}`);
             }
+
+            if (!newUser) {
+              throw new Error('Account creation failed - no data received');
+            }
+
+            // Set user vào context
+            try {
+              setUser(newUser);
+            } catch (setUserError) {
+              console.error('Error setting user in context:', setUserError);
+            }
+
+            // Redirect đến SetPassword để đặt mật khẩu
+            setStatus('success');
+            setMessage('Login successful! Please set password.');
+            setTimeout(() => {
+              navigate(`/set-password?email=${encodeURIComponent(supabaseUser.email)}`);
+            }, 3000);
+            return;
           } else {
-            await supabase
+            // Update last_login
+            const { error: updateError } = await supabase
               .from('users')
               .update({ last_login: new Date().toISOString() })
               .eq('id', existingUser.id);
-            
-            setUser(existingUser);
+
+            if (updateError) {
+              console.warn('Error updating last_login:', updateError);
+            }
+
+            // Set user vào context
+            try {
+              loginManual(existingUser);
+            } catch (setUserError) {
+              console.error('Error setting user in context:', setUserError);
+              throw new Error('Error when logging in');
+            }
+
+            // Check xem user có cần set password không (trim để tránh whitespace)
+            const passwordHash = String(existingUser.password_hash || '').trim();
+            if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
+              setStatus('success');
+              setMessage('Login successful! Please set password.');
+              setTimeout(() => {
+                navigate(`/set-password?email=${encodeURIComponent(supabaseUser.email)}`);
+              }, 3000);
+              return;
+            }
+
+            // User đã có password, login thành công
             setStatus('success');
             setMessage('Login successful!');
-            setTimeout(() => navigate('/'), 2000);
+            setTimeout(() => navigate('/'), 5000);
             return;
           }
         }
@@ -212,8 +353,13 @@ const AuthCallback = () => {
         setTimeout(() => navigate('/login'), 3000);
       } catch (err) {
         console.error('Callback error:', err);
+        console.error('Error details:', {
+          message: err.message,
+          stack: err.stack,
+          name: err.name
+        });
         setStatus('error');
-        setMessage('An error occurred. Redirecting to login...');
+        setMessage(err.message || 'An error occurred. Redirecting to login...');
         setTimeout(() => navigate('/login'), 3000);
       }
     };
