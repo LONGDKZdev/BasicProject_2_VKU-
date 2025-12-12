@@ -8,7 +8,7 @@ import {
 import { useRoomContext } from "../context/RoomContext";
 import { useMemo } from "react";
 
-const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
+const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms';
 
 const highlights = [
   {

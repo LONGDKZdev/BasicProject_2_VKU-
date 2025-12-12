@@ -134,4 +134,3 @@ export const verifyCodeAndResetPassword = async (email, code, newPassword) => {
     return { success: false, message: 'Failed to reset password.' };
   }
 };
-

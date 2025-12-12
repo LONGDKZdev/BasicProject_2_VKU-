@@ -3,6 +3,8 @@ import { SpinnerDotted } from "spinners-react";
 import { Room, Pagination } from ".";
 import { useState, useMemo } from "react";
 
+
+
 const Rooms = () => {
   const { rooms, loading } = useRoomContext();
   const [currentPage, setCurrentPage] = useState(1);

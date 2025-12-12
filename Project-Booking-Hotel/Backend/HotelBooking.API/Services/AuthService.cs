@@ -399,4 +399,3 @@ public class AuthService : IAuthService
         return random.Next(100000, 999999).ToString();
     }
 }
-

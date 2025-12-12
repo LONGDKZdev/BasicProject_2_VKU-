@@ -484,4 +484,3 @@ export const changePassword = async (userId, currentPassword, newPassword) => {
     return { success: false, error: err.message || 'Failed to change password' };
   }
 };
-

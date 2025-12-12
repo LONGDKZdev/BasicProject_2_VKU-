@@ -58,6 +58,12 @@ const transformDbRoomToFrontend = (dbRoom, reviews = []) => {
   const roomName = dbRoom.name || rt.name || `Room ${dbRoom.room_no}`;
   const roomPrice = dbRoom.price != null ? Number(dbRoom.price) : (Number(rt.base_price) || 115);
   const roomDescription = dbRoom.description || rt.description || 'A comfortable room.';
+  const roomTypeCode = rt.code || 'STD';
+  
+  // Get fallback image URLs if image_url is null
+  const fallbackImages = getImageUrlsByRoomType(roomTypeCode);
+  const imageUrl = dbRoom.image_url || fallbackImages?.image_url || null;
+  const imageLgUrl = dbRoom.image_lg_url || fallbackImages?.image_lg_url || null;
   
   return {
     id: dbRoom.id, // UUID string from DB
@@ -65,14 +71,14 @@ const transformDbRoomToFrontend = (dbRoom, reviews = []) => {
     roomNo: dbRoom.room_no,
     floor: dbRoom.floor,
     name: roomName, // Ưu tiên từ room cụ thể
-    type: rt.code || rt.name || 'Standard',
+    type: roomTypeCode,
     category: rt.code || 'standard',
     description: roomDescription, // Ưu tiên từ room cụ thể
     price: roomPrice, // Ưu tiên từ room cụ thể
     maxPerson: rt.max_person || 2,
     size: dbRoom.size || 35, // From rooms table
-    image: dbRoom.image_url || null, // From room_images (Supabase Storage URL)
-    imageLg: dbRoom.image_lg_url || null, // From room_images large version
+    image: imageUrl, // From room_images (Supabase Storage URL) or fallback
+    imageLg: imageLgUrl, // From room_images large version or fallback
     facilities: (rt.facilities || []).map((name) => ({ name })),
     reviews: reviews || [],
     pricing: {

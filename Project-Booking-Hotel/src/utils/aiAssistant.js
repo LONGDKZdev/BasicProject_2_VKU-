@@ -54,12 +54,12 @@ export const getDynamicPrice = (basePrice, date) => {
 export const validateBooking = (bookingData) => {
   const errors = [];
 
-  if (!bookingData.name?.trim()) errors.push("Tên không được để trống");
+  if (!bookingData.name?.trim()) errors.push("Name cannot be empty");
   if (!bookingData.email?.trim() || !bookingData.email.includes("@"))
-    errors.push("Email không hợp lệ");
+    errors.push("Invalid email address");
   if (bookingData.checkIn >= bookingData.checkOut)
-    errors.push("Ngày trả phòng phải sau ngày nhận phòng");
-  if (!bookingData.roomName?.trim()) errors.push("Vui lòng chọn phòng");
+    errors.push("Check-out date must be after check-in date");
+  if (!bookingData.roomName?.trim()) errors.push("Please select a room");
 
   return {
     isValid: errors.length === 0,
@@ -76,8 +76,8 @@ export const formatConfirmation = (booking, room) => {
     confirmationCode: booking.confirmationCode,
     room: room.name,
     guest: booking.name,
-    checkIn: new Date(booking.checkIn).toLocaleDateString("vi-VN"),
-    checkOut: new Date(booking.checkOut).toLocaleDateString("vi-VN"),
+    checkIn: new Date(booking.checkIn).toLocaleDateString("en-US"),
+    checkOut: new Date(booking.checkOut).toLocaleDateString("en-US"),
     nights,
     pricePerNight: room.price,
     totalPrice,
@@ -101,9 +101,9 @@ export const getContextFromChat = (messages) => {
       const text = msg.text.toLowerCase();
 
       // Detect amenities
-      if (text.includes("bể bơi") || text.includes("pool"))
+      if (text.includes("pool") || text.includes("swimming"))
         context.mentionedAmenities.push("pool");
-      if (text.includes("gym") || text.includes("tập"))
+      if (text.includes("gym") || text.includes("fitness") || text.includes("workout"))
         context.mentionedAmenities.push("gym");
       if (text.includes("spa") || text.includes("massage"))
         context.mentionedAmenities.push("spa");
@@ -111,13 +111,13 @@ export const getContextFromChat = (messages) => {
 
       // Detect room preferences
       if (text.includes("deluxe")) context.preferredRoomType = "deluxe";
-      if (text.includes("gia đình") || text.includes("family"))
+      if (text.includes("family"))
         context.preferredRoomType = "family";
-      if (text.includes("view") || text.includes("tầm nhìn"))
+      if (text.includes("view") || text.includes("sea view") || text.includes("ocean view"))
         context.preferredRoomType = "view";
 
       // Detect special needs
-      if (text.includes("yêu cầu") || text.includes("đặc biệt"))
+      if (text.includes("special") || text.includes("request") || text.includes("need"))
         context.specialNeeds.push(text);
     }
   });
@@ -129,10 +129,10 @@ export const getContextFromChat = (messages) => {
 export const getTimeBasedGreeting = () => {
   const hour = new Date().getHours();
 
-  if (hour < 12) return "Chào buổi sáng! ☀️";
-  if (hour < 17) return "Chào buổi chiều! 🌤️";
-  if (hour < 21) return "Chào buổi tối! 🌆";
-  return "Chào đêm! 🌙";
+  if (hour < 12) return "Good morning! ☀️";
+  if (hour < 17) return "Good afternoon! 🌤️";
+  if (hour < 21) return "Good evening! 🌆";
+  return "Good night! 🌙";
 };
 
 // Smart date suggestions
@@ -171,13 +171,13 @@ export const extractIntent = (userMessage) => {
   const text = userMessage.toLowerCase();
 
   const intents = {
-    book: ["đặt", "book", "booking", "reserve", "broneer"],
-    search: ["tìm", "search", "find", "gợi ý", "recommend", "suggest"],
-    price: ["giá", "price", "cost", "bao nhiêu", "discount", "khuyến mại"],
-    amenities: ["tiện nghi", "dịch vụ", "amenities", "facilities", "có gì"],
-    cancel: ["hủy", "cancel", "xóa", "delete"],
-    modify: ["thay đổi", "modify", "update", "sửa"],
-    contact: ["liên hệ", "contact", "support", "hỗ trợ", "hotline"],
+    book: ["book", "booking", "reserve", "reservation", "make a booking"],
+    search: ["search", "find", "look", "recommend", "suggest", "show me"],
+    price: ["price", "cost", "how much", "discount", "promotion", "deal"],
+    amenities: ["amenities", "facilities", "features", "what", "services"],
+    cancel: ["cancel", "delete", "remove", "cancel booking"],
+    modify: ["modify", "update", "change", "edit"],
+    contact: ["contact", "support", "help", "hotline", "phone", "email"],
   };
 
   const detectedIntents = [];
@@ -195,13 +195,13 @@ export const generateSuggestions = (userContext, stage) => {
   const suggestions = [];
 
   if (stage === "idle") {
-    suggestions.push("💎 Phòng Deluxe - Sang trọng với view tuyệt đẹp");
-    suggestions.push("👨‍👩‍👧‍👦 Phòng Gia Đình - Rộng rãi cho các gia đình");
-    suggestions.push("🏖️ Phòng View Biển - Thư giãn tuyệt đối");
+    suggestions.push("💎 Deluxe Room - Luxurious with stunning views");
+    suggestions.push("👨‍👩‍👧‍👦 Family Room - Spacious for families");
+    suggestions.push("🏖️ Sea View Room - Ultimate relaxation");
   }
 
   if (stage === "filter" && userContext.mentionedAmenities.length > 0) {
-    suggestions.push(`✓ Có ${userContext.mentionedAmenities.join(", ")}`);
+    suggestions.push(`✓ Features ${userContext.mentionedAmenities.join(", ")}`);
   }
 
   return suggestions;

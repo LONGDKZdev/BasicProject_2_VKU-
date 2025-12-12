@@ -13,4 +13,3 @@ public interface IAuthService
     Task<EmailResult> VerifyCodeAndResetPassword(string email, string code, string newPassword);
     OAuthUrls GetOAuthUrls();
 }
-
