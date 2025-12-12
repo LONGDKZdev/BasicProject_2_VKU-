@@ -32,7 +32,6 @@ Dự án **Hotel Booking System** là một hệ thống quản lý đặt phòn
 - ✅ **OAuth login** (Google, Facebook) với dual fallback (C# API + Supabase)
 - ✅ **Email verification** và password reset
 - ✅ **Admin panel** đầy đủ với reports & analytics
-- ✅ **Multi-language** support (English, Vietnamese, French)
 - ✅ **Real-time notifications**
 - ✅ **QR Code payment**
 - ✅ **Chat assistant** tích hợp
