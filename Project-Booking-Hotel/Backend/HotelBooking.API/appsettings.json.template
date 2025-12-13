@@ -6,11 +6,23 @@
     }
   },
   "AllowedHosts": "*",
+  
+  // ============================================
+  // SUPABASE CONFIGURATION (Primary Database)
+  // ============================================
   "Supabase": {
     "Url": "YOUR_SUPABASE_URL",
     "Key": "YOUR_SUPABASE_ANON_KEY"
   },
+  
+  // ============================================
+  // API BASE URL
+  // ============================================
   "ApiBaseUrl": "http://localhost:5000",
+  
+  // ============================================
+  // OAUTH CONFIGURATION (Google & Facebook)
+  // ============================================
   "OAuth": {
     "Google": {
       "ClientId": "YOUR_GOOGLE_CLIENT_ID",
@@ -22,6 +34,10 @@
     },
     "RedirectUri": "http://localhost:5173"
   },
+  
+  // ============================================
+  // EMAIL SERVICE (SMTP)
+  // ============================================
   "Email": {
     "SmtpHost": "smtp.gmail.com",
     "SmtpPort": "587",
@@ -30,5 +46,14 @@
     "FromEmail": "YOUR_EMAIL@gmail.com",
     "FromName": "Hotel Booking"
   }
+  
+  // ============================================
+  // DUAL API STRATEGY NOTES
+  // ============================================
+  // Frontend sẽ tự động fallback sang Supabase nếu:
+  // - C# API không khả dụng (timeout 5s)
+  // - C# API trả về lỗi
+  // - Network error
+  // User không bị gián đoạn, hệ thống luôn hoạt động
 }
 

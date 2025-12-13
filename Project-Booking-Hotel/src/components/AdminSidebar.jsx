@@ -12,7 +12,7 @@ import {
   FaUser,
   FaUsers
 } from 'react-icons/fa';
-import { LogoDark } from '../assets';
+import { getLogoUrl } from '../utils/supabaseStorageUrls';
 import { useAuth } from '../context/SimpleAuthContext';
 import { useMemo } from 'react';
 
@@ -55,7 +55,7 @@ const AdminSidebar = ({ activeSection, setActiveSection }) => {
       {/* Logo */}
       <div className="p-6 border-b border-accent/20">
         <Link to="/" className="flex items-center">
-          <LogoDark className="w-[140px] brightness-0 invert" />
+          <img src={getLogoUrl('dark')} alt="logo" className="w-[140px] brightness-0 invert" />
         </Link>
         <p className="text-sm text-gray-400 mt-2 uppercase tracking-wider">Admin Panel</p>
       </div>

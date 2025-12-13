@@ -1,5 +1,7 @@
 import { FaCheck } from "react-icons/fa";
-import images from "../assets";
+
+// Supabase storage base (assets moved to Supabase)
+const STORAGE_BASE_URL = "https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms";
 
 
 export const adultsList = [
@@ -20,25 +22,25 @@ export const kidsList = [
 
 
 export const sliderData = [
-    {
-        id: 1,
-        title: 'Your Luxury Hotel For Vacation',
-        bg: images.Slider1,
-        btnNext: 'See our rooms',
-    },
-    {
-        id: 2,
-        title: 'Feel Relax & Enjoy Your Luxuriousness',
-        bg: images.Slider2,
-        btnNext: 'See our rooms',
-    },
-    {
-        id: 3,
-        title: 'Your Luxury Hotel For Vacation',
-        bg: images.Slider3,
-        btnNext: 'See our rooms',
-    },
-]
+  {
+    id: 1,
+    title: 'Your Luxury Hotel For Vacation',
+    bg: `${STORAGE_BASE_URL}/img/heroSlider/1.jpg`,
+    btnNext: 'See our rooms',
+  },
+  {
+    id: 2,
+    title: 'Feel Relax & Enjoy Your Luxuriousness',
+    bg: `${STORAGE_BASE_URL}/img/heroSlider/2.jpg`,
+    btnNext: 'See our rooms',
+  },
+  {
+    id: 3,
+    title: 'Your Luxury Hotel For Vacation',
+    bg: `${STORAGE_BASE_URL}/img/heroSlider/3.jpg`,
+    btnNext: 'See our rooms',
+  },
+];
 
 
 export const hotelRules = [

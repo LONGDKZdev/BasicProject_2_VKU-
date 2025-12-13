@@ -87,10 +87,45 @@ select id, 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/ho
 on conflict do nothing;
 
 -- 5. REVIEWS MẪU
+-- Reviews theo room_type_id (backward compatibility - hiển thị cho tất cả phòng cùng loại)
 insert into public.room_reviews (room_type_id, user_name, user_email, rating, comment, stay_date, created_at) values
   ((select id from public.room_types where code='STD'), 'Sophia Nguyen', 'sophia@email.com', 5, 'Room was spotless, pool view stunning.', '2024-10-15', now()),
   ((select id from public.room_types where code='STD'), 'Daniel Park', 'daniel@email.com', 4, 'Bed was plush and breakfast tasty.', '2024-11-10', now()),
-  ((select id from public.room_types where code='DLX'), 'Marco Rossi', 'marco@email.com', 5, 'Serene courtyard setting.', '2024-07-22', now());
+  ((select id from public.room_types where code='DLX'), 'Marco Rossi', 'marco@email.com', 5, 'Serene courtyard setting.', '2024-07-22', now()),
+  ((select id from public.room_types where code='CMB'), 'Emma Wilson', 'emma@email.com', 5, 'Combo package was excellent value!', '2024-12-01', now()),
+  ((select id from public.room_types where code='SUI'), 'James Brown', 'james@email.com', 5, 'Spacious suite with amazing amenities.', '2024-11-20', now());
+
+-- Reviews theo room_id cụ thể (mỗi phòng có reviews riêng)
+-- STD rooms
+insert into public.room_reviews (room_id, room_type_id, user_name, user_email, rating, comment, stay_date, created_at)
+select r.id, r.room_type_id, 'Alex Chen', 'alex@email.com', 5, 'Perfect stay in ' || r.name || '. Highly recommended!', '2024-12-05', now()
+from public.rooms r where r.room_no = 'STD-01';
+
+insert into public.room_reviews (room_id, room_type_id, user_name, user_email, rating, comment, stay_date, created_at)
+select r.id, r.room_type_id, 'Sarah Lee', 'sarah@email.com', 4, 'Great room, clean and comfortable.', '2024-12-03', now()
+from public.rooms r where r.room_no = 'STD-02';
+
+-- DLX rooms
+insert into public.room_reviews (room_id, room_type_id, user_name, user_email, rating, comment, stay_date, created_at)
+select r.id, r.room_type_id, 'Michael Johnson', 'michael@email.com', 5, 'Deluxe room exceeded expectations!', '2024-12-01', now()
+from public.rooms r where r.room_no = 'DLX-01';
+
+insert into public.room_reviews (room_id, room_type_id, user_name, user_email, rating, comment, stay_date, created_at)
+select r.id, r.room_type_id, 'Lisa Anderson', 'lisa@email.com', 4, 'Beautiful room with great amenities.', '2024-11-28', now()
+from public.rooms r where r.room_no = 'DLX-02';
+
+-- CMB rooms (Combo)
+insert into public.room_reviews (room_id, room_type_id, user_name, user_email, rating, comment, stay_date, created_at)
+select r.id, r.room_type_id, 'David Kim', 'david@email.com', 5, 'Combo Premium package was amazing!', '2024-12-02', now()
+from public.rooms r where r.room_no = 'CMB-01';
+
+insert into public.room_reviews (room_id, room_type_id, user_name, user_email, rating, comment, stay_date, created_at)
+select r.id, r.room_type_id, 'Maria Garcia', 'maria@email.com', 4, 'Combo Family package perfect for our stay.', '2024-11-30', now()
+from public.rooms r where r.room_no = 'CMB-02';
+
+insert into public.room_reviews (room_id, room_type_id, user_name, user_email, rating, comment, stay_date, created_at)
+select r.id, r.room_type_id, 'Robert Taylor', 'robert@email.com', 5, 'Combo Romance package was perfect for our anniversary!', '2024-12-04', now()
+from public.rooms r where r.room_no = 'CMB-03';
 
 -- 6. KHUYẾN MÃI & QUY TẮC GIÁ
 insert into public.price_rules (rule_type, room_type_id, apply_fri, apply_sat, apply_sun, price, priority, description, is_active)
@@ -182,3 +217,75 @@ SELECT DISTINCT rt.id, a.id FROM public.room_types rt CROSS JOIN LATERAL unnest(
 INSERT INTO public.holiday_calendar (holiday_date, name, multiplier) VALUES
     ('2025-01-01', 'New Year 2025', 1.5), ('2025-04-30', 'Reunification Day', 1.3), ('2025-12-25', 'Christmas Day', 1.5)
 ON CONFLICT (holiday_date) DO NOTHING;
+
+-- 11. ROOM STATUS HISTORY (seed optional)
+insert into public.room_status_history (room_id, status, started_at, note)
+select id, status, now(), 'Initial status seed'
+from public.rooms
+on conflict do nothing;
+
+-- 12. RESTAURANT SEED (menu, tables, slots)
+-- Note: image_url uses Supabase Storage URLs (img/rooms/1-lg.png through 8-lg.png)
+-- Frontend will cycle through images 1-8 based on item id if image_url is null
+insert into public.restaurant_menu_items (code, name, description, category, price, image_url, display_order) values
+  ('APP-TRUFFLE', 'Truffle Arancini', 'Crispy risotto with truffle', 'appetizers', 28, null, 1),
+  ('MAIN-RIBEYE', 'Wagyu Ribeye Steak', '300g ribeye with veggies', 'mains', 95, null, 2),
+  ('DESS-SOUFFLE', 'Chocolate Soufflé', 'Warm soufflé with ice cream', 'desserts', 24, null, 3),
+  ('BEV-CHAMP', 'Champagne', 'Premium champagne', 'beverages', 120, null, 4)
+on conflict (code) do update set image_url = null;
+
+insert into public.restaurant_tables (name, capacity, location, status) values
+  ('T1', 2, 'Indoor', 'available'),
+  ('T2', 4, 'Indoor', 'available'),
+  ('T3', 4, 'Terrace', 'available'),
+  ('T4', 6, 'Terrace', 'available')
+on conflict (name) do nothing;
+
+-- Seed a few slots today/tomorrow for each table
+insert into public.restaurant_slots (table_id, reservation_at, capacity_limit, capacity_used, status)
+select t.id, (current_date + i)::date + time '18:00', t.capacity, 0, 'available'
+from public.restaurant_tables t
+cross join generate_series(0,1) as i
+on conflict do nothing;
+
+insert into public.restaurant_slots (table_id, reservation_at, capacity_limit, capacity_used, status)
+select t.id, (current_date + i)::date + time '20:00', t.capacity, 0, 'available'
+from public.restaurant_tables t
+cross join generate_series(0,1) as i
+on conflict do nothing;
+
+-- 13. SPA SEED (services, slots)
+-- Note: image_url uses Supabase Storage URLs (img/rooms/1-lg.png through 8-lg.png)
+-- Frontend will cycle through images 1-8 based on service id if image_url is null
+insert into public.spa_services (code, name, category, duration_minutes, price, description, image_url, display_order) values
+  ('SPA-SWE', 'Swedish Massage', 'massage', 60, 95, 'Relaxation massage', null, 1),
+  ('SPA-HOT', 'Hot Stone Massage', 'massage', 90, 145, 'Deep relaxation with stones', null, 2),
+  ('SPA-FAC', 'Signature Facial', 'facial', 60, 120, 'Deep cleansing facial', null, 3)
+on conflict (code) do update set image_url = null;
+
+-- Seed slots for today/tomorrow for each service
+insert into public.spa_slots (service_id, therapist, appointment_at, capacity, status)
+select s.id, 'Therapist A', (current_date + i)::date + time '10:00', 1, 'available'
+from public.spa_services s
+cross join generate_series(0,1) as i
+on conflict do nothing;
+
+insert into public.spa_slots (service_id, therapist, appointment_at, capacity, status)
+select s.id, 'Therapist B', (current_date + i)::date + time '14:00', 1, 'available'
+from public.spa_services s
+cross join generate_series(0,1) as i
+on conflict do nothing;
+
+-- ============================================================================
+-- FIX IMAGE URLs - Remove placeholder URLs (run this after initial seed)
+-- ============================================================================
+-- Frontend will automatically use Supabase Storage fallback images from rooms/ folder
+UPDATE public.restaurant_menu_items
+SET image_url = NULL
+WHERE image_url LIKE '%via.placeholder.com%'
+   OR image_url LIKE '%placeholder.com%';
+
+UPDATE public.spa_services
+SET image_url = NULL
+WHERE image_url LIKE '%via.placeholder.com%'
+   OR image_url LIKE '%placeholder.com%';

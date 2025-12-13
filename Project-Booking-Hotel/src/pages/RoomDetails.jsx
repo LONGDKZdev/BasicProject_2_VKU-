@@ -17,6 +17,7 @@ import {
 } from 'react-icons/fa';
 import { useMemo, useState, useEffect } from 'react';
 import { fetchRoomReviews, createReview } from '../services/roomService';
+import { supabase } from '../utils/supabaseClient';
 
 // Placeholder image - will be replaced by Supabase Storage URL
 const PLACEHOLDER_IMG =
@@ -46,7 +47,10 @@ const createLocalId = () => {
 };
 
 const RoomDetails = () => {
-  const { roomNo } = useParams();
+  // Lấy parameter từ URL - route là /room/:id nên dùng 'id'
+  const params = useParams();
+  const roomNo = params.id || params.roomNo; // Route dùng :id, nhưng hỗ trợ cả roomNo
+  
   const {
     allRooms,
     bookRoom,
@@ -57,10 +61,46 @@ const RoomDetails = () => {
   } = useRoomContext();
   const { user, isAuthenticated } = useAuth();
 
-  // Tìm room theo room_no thay vì UUID để bảo mật URL
-  const room = allRooms.find(roomItem => 
-    roomItem.roomNo === roomNo || roomItem.room_no === roomNo
-  );
+  // Tìm room theo room_no (URL dùng roomNo như "CMB-02", không phải UUID)
+  const room = allRooms.find(roomItem => {
+    // Ưu tiên match theo roomNo (string như "STD-01" hoặc "CMB-02")
+    if (roomItem.roomNo === roomNo || roomItem.room_no === roomNo) {
+      return true;
+    }
+    // Fallback: Match theo id (UUID) nếu roomNo không match
+    if (roomItem.id === roomNo) {
+      return true;
+    }
+    return false;
+  });
+  
+  // Debug log để kiểm tra
+  useEffect(() => {
+    console.log('🔍 RoomDetails Debug:', {
+      params: params,
+      roomNoFromURL: roomNo,
+      allRoomsCount: allRooms.length,
+      foundRoom: room ? {
+        id: room.id,
+        roomNo: room.roomNo,
+        room_no: room.room_no,
+        name: room.name,
+        price: room.price
+      } : null,
+      firstFewRooms: allRooms.slice(0, 5).map(r => ({
+        id: r.id,
+        roomNo: r.roomNo,
+        room_no: r.room_no,
+        name: r.name
+      })),
+      allCMBRooms: allRooms.filter(r => r.roomNo?.startsWith('CMB-') || r.room_no?.startsWith('CMB-')).map(r => ({
+        id: r.id,
+        roomNo: r.roomNo,
+        room_no: r.room_no,
+        name: r.name
+      }))
+    });
+  }, [params, roomNo, allRooms, room]);
 
   const [reservation, setReservation] = useState({
     checkIn: '',
@@ -113,36 +153,130 @@ const RoomDetails = () => {
 
   const totalGuests = reservation.adults + reservation.kids;
   const pricingPreview = useMemo(() => {
-    if (!room || !reservation.checkIn || !reservation.checkOut) return null;
-    return calculatePricingForRoom(room, reservation.checkIn, reservation.checkOut);
-  }, [room, reservation.checkIn, reservation.checkOut, calculatePricingForRoom]);
-  const totalPrice = pricingPreview?.total ?? nights * room.price;
+    if (!room || !reservation.checkIn || !reservation.checkOut) {
+      console.log('⚠️ RoomDetails: Cannot calculate pricing - missing data', {
+        hasRoom: !!room,
+        checkIn: reservation.checkIn,
+        checkOut: reservation.checkOut
+      });
+      return null;
+    }
+    const preview = calculatePricingForRoom(room, reservation.checkIn, reservation.checkOut);
+    console.log('💰 RoomDetails: Pricing calculated:', {
+      roomId: room.id,
+      roomNo: room.roomNo,
+      roomPrice: room.price,
+      checkIn: reservation.checkIn,
+      checkOut: reservation.checkOut,
+      nights,
+      preview
+    });
+    return preview;
+  }, [room, reservation.checkIn, reservation.checkOut, calculatePricingForRoom, nights]);
+  const totalPrice = pricingPreview?.total ?? (nights * (room?.price || 0));
 
   // Load existing reviews for this specific room from Supabase
   useEffect(() => {
     let isMounted = true;
+    let subscription = null;
 
     const loadReviews = async () => {
-      if (!room?.id) return;
-      // Fetch reviews theo room_id cụ thể, không phải room_type_id
-      const data = await fetchRoomReviews(room.id, null);
-      if (!isMounted) return;
-      const normalized = (data || []).map((r) => ({
-        id: r.id,
-        userId: r.user_id,
-        userName: r.user_name,
-        userEmail: r.user_email,
-        rating: r.rating,
-        comment: r.comment,
-        createdAt: r.created_at,
-      }));
-      setReviews(normalized);
+      if (!room?.id) {
+        console.log('⚠️ RoomDetails: Cannot load reviews - room.id is missing', { room });
+        return;
+      }
+      
+      console.log('📝 RoomDetails: Loading reviews for room:', {
+        roomId: room.id,
+        roomNo: room.roomNo,
+        roomName: room.name
+      });
+      
+      // Fetch reviews: CHỈ fetch theo room_id cụ thể (không fallback về room_type_id)
+      // để đảm bảo mỗi phòng có reviews riêng
+      try {
+        // CHỈ fetch theo room_id cụ thể
+        const data = await fetchRoomReviews(room.id, null);
+        
+        console.log('📝 RoomDetails: Fetched reviews:', {
+          roomId: room.id,
+          roomNo: room.roomNo,
+          reviewCount: data?.length || 0,
+          reviews: data
+        });
+        
+        if (!isMounted) return;
+        
+        const normalized = (data || []).map((r) => ({
+          id: r.id,
+          userId: r.user_id,
+          userName: r.user_name,
+          userEmail: r.user_email,
+          rating: r.rating,
+          comment: r.comment,
+          createdAt: r.created_at,
+          stayDate: r.stay_date,
+        }));
+        setReviews(normalized);
+        console.log('✅ RoomDetails: Reviews loaded successfully:', normalized.length);
+      } catch (error) {
+        console.error('❌ RoomDetails: Error loading reviews:', error);
+        setReviews([]); // Set empty array on error
+      }
     };
 
+    // Load reviews lần đầu
     loadReviews();
+
+    // Setup Supabase Realtime subscription để tự động update khi có review mới
+    if (room?.id) {
+      try {
+        subscription = supabase
+          .channel(`room_reviews:${room.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*', // Listen to INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'room_reviews',
+              filter: `room_id=eq.${room.id}`, // Chỉ listen reviews của phòng này
+            },
+            (payload) => {
+              console.log('🔄 RoomDetails: Realtime update received:', payload);
+              
+              if (!isMounted) return;
+              
+              // Reload reviews khi có thay đổi
+              loadReviews();
+            }
+          )
+          .subscribe((status) => {
+            console.log('📡 RoomDetails: Realtime subscription status:', status);
+          });
+      } catch (realtimeError) {
+        console.warn('⚠️ RoomDetails: Realtime subscription failed, using polling fallback:', realtimeError);
+        
+        // Fallback: Polling mỗi 10 giây nếu Realtime không hoạt động
+        const pollInterval = setInterval(() => {
+          if (isMounted) {
+            loadReviews();
+          }
+        }, 10000); // 10 seconds
+        
+        return () => {
+          isMounted = false;
+          clearInterval(pollInterval);
+        };
+      }
+    }
 
     return () => {
       isMounted = false;
+      // Unsubscribe khi component unmount
+      if (subscription) {
+        supabase.removeChannel(subscription);
+        console.log('🔌 RoomDetails: Realtime subscription removed');
+      }
     };
   }, [room?.id]);
 
@@ -269,28 +403,6 @@ const RoomDetails = () => {
       return;
     }
 
-    // Check if user has completed booking for this room
-    if (user?.id && room?.id) {
-      const userBookings = getUserBookings(user.id);
-      const hasCompletedBooking = userBookings.some((booking) => {
-        if (booking.roomId === room.id && booking.status !== 'cancelled') {
-          // Check if checkOut date has passed (completed stay)
-          const checkOut = new Date(booking.checkOut);
-          const now = new Date();
-          return checkOut < now;
-        }
-        return false;
-      });
-
-      if (!hasCompletedBooking) {
-        showToast({ 
-          type: 'error', 
-          message: 'You can only review rooms you have stayed in. Please complete a booking first.' 
-        });
-        return;
-      }
-    }
-
     const newReview = {
       id: createLocalId(),
       userId: user?.id,
@@ -301,25 +413,53 @@ const RoomDetails = () => {
       createdAt: new Date().toISOString(),
     };
 
-    // Cập nhật UI ngay
-    setReviews((prev) => [newReview, ...prev]);
-    showToast({ type: 'success', message: 'Thank you for sharing your experience!' });
-    setReviewForm({ rating: 5, comment: '' });
-
-    // Lưu về Supabase (theo room_id cụ thể)
+    // Lưu về Supabase TRƯỚC (theo room_id cụ thể, KHÔNG lưu room_type_id để tránh áp dụng cho tất cả)
     if (room?.id) {
-      createReview({
-        room_id: room.id,
-        room_type_id: room.roomTypeId, // Vẫn giữ để backward compatibility
-        user_id: newReview.userId,
-        user_name: newReview.userName,
-        user_email: newReview.userEmail,
-        rating: newReview.rating,
-        comment: newReview.comment,
-        created_at: newReview.createdAt,
-      }).catch((err) => {
+      try {
+        const savedReview = await createReview({
+          room_id: room.id, // CHỈ lưu room_id cụ thể, KHÔNG lưu room_type_id
+          user_id: newReview.userId,
+          user_name: newReview.userName,
+          user_email: newReview.userEmail,
+          rating: newReview.rating,
+          comment: newReview.comment,
+          created_at: newReview.createdAt,
+        });
+        
+        if (savedReview) {
+          // Update newReview với id từ DB
+          newReview.id = savedReview.id;
+        }
+        
+        // Cập nhật UI sau khi lưu thành công
+        setReviews((prev) => [newReview, ...prev]);
+        showToast({ type: 'success', message: 'Thank you for sharing your experience!' });
+        setReviewForm({ rating: 5, comment: '' });
+        
+        // Reload reviews từ DB để đảm bảo sync
+        const updatedReviews = await fetchRoomReviews(room.id, null);
+        if (updatedReviews && updatedReviews.length > 0) {
+          const normalized = updatedReviews.map((r) => ({
+            id: r.id,
+            userId: r.user_id,
+            userName: r.user_name,
+            userEmail: r.user_email,
+            rating: r.rating,
+            comment: r.comment,
+            createdAt: r.created_at,
+            stayDate: r.stay_date,
+          }));
+          setReviews(normalized);
+        }
+      } catch (err) {
         console.error('Error saving review to Supabase:', err);
-      });
+        showToast({ type: 'error', message: 'Failed to save review. Please try again.' });
+      }
+    } else {
+      // Nếu không có room.id, chỉ update UI local
+      setReviews((prev) => [newReview, ...prev]);
+      showToast({ type: 'success', message: 'Thank you for sharing your experience!' });
+      setReviewForm({ rating: 5, comment: '' });
     }
   };
 
@@ -361,7 +501,7 @@ const RoomDetails = () => {
                 ))}
               </div>
               <p className='text-sm text-primary/70'>
-                {room.reviews?.length ? `${room.reviews.length} reviews` : 'Be the first to review this stay'}
+                {reviews.length ? `${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'}` : 'Be the first to review this stay'}
               </p>
             </div>
 
@@ -467,11 +607,23 @@ const RoomDetails = () => {
               <div className='flex justify-between items-center mb-6'>
                 <div>
                   <p className='text-sm text-primary/60'>Rate per night</p>
-                  <p className='text-3xl font-primary text-accent'>${room.price}</p>
+                  <p className='text-3xl font-primary text-accent'>
+                    ${pricingPreview?.basePricePerNight?.toFixed(2) || room.price?.toFixed(2) || '0.00'}
+                  </p>
+                  {pricingPreview?.breakdown && (
+                    <p className='text-xs text-primary/50 mt-1'>
+                      Base: ${room.price?.toFixed(2)}
+                      {pricingPreview.breakdown.weekendAdjustment > 0 && ` • Weekend: +${pricingPreview.breakdown.weekendAdjustment.toFixed(2)}`}
+                      {pricingPreview.breakdown.holidayAdjustment > 0 && ` • Holiday: +${pricingPreview.breakdown.holidayAdjustment.toFixed(2)}`}
+                    </p>
+                  )}
                 </div>
                 <div className='text-sm text-primary/60 text-right'>
                   <p>Up to {maxGuests} guests</p>
-                  <p>{nights} night(s) • ${totalPrice}</p>
+                  <p>{nights} night(s) • ${totalPrice?.toFixed(2) || '0.00'}</p>
+                  {reservation.promoCode && (
+                    <p className='text-xs text-accent mt-1'>Promo: {reservation.promoCode}</p>
+                  )}
                 </div>
               </div>
 

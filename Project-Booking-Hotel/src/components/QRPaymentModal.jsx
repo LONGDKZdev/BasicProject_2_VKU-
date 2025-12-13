@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FaTimes, FaCheck, FaCopy } from "react-icons/fa";
+import { QRCodeSVG } from 'qrcode.react';
 
 const QRPaymentModal = ({ booking, onConfirmPayment, onClose }) => {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
@@ -60,16 +61,23 @@ const QRPaymentModal = ({ booking, onConfirmPayment, onClose }) => {
                 <div className="text-sm text-primary/70 mb-4">
                   Scan this QR code to complete payment:
                 </div>
-                {/* Placeholder for QR Code - in production, use a QR code library like qrcode.react */}
-                <div className="w-48 h-48 mx-auto bg-white border-4 border-gray-300 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-5xl mb-2">📱</div>
-                    <p className="text-xs text-gray-500">QR Code</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Amount: ${booking.totalPrice}
-                    </p>
-                  </div>
+                <div className="w-48 h-48 mx-auto bg-white border-4 border-gray-300 rounded-lg p-4 flex items-center justify-center">
+                  <QRCodeSVG
+                    value={JSON.stringify({
+                      bookingId: booking.id || booking.confirmationCode,
+                      confirmationCode: booking.confirmationCode,
+                      amount: booking.totalPrice,
+                      type: 'room',
+                      timestamp: new Date().toISOString(),
+                    })}
+                    size={180}
+                    level="M"
+                    includeMargin={false}
+                  />
                 </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Amount: ${booking.totalPrice}
+                </p>
               </div>
 
               {/* Confirmation Code */}

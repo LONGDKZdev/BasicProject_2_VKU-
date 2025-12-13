@@ -4,7 +4,7 @@ import RoomTypesManagement from '../components/admin/RoomTypesManagement';
 import RoomsManagement from '../components/admin/RoomsManagement';
 import PriceRulesManagement from '../components/admin/PriceRulesManagement';
 import PromotionsManagement from '../components/admin/PromotionsManagement';
-import BookingsManagement from '../components/admin/BookingsManagement';
+import BookingsManagement from '../components/admin/BookingsManagement_REFACTORED';
 import UsersManagement from '../components/admin/UsersManagement';
 import AuditLogsManagement from '../components/admin/AuditLogsManagement';
 import ReportsManagement from '../components/admin/ReportsManagement';

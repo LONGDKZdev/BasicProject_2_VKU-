@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { FaFileInvoice, FaEnvelope, FaTimes } from "react-icons/fa";
-import { LogoDark } from "../assets";
+import { getLogoUrl } from "../utils/supabaseStorageUrls";
 
 const Invoice = ({ booking, onClose, onDownload, onEmail }) => {
   const invoiceRef = useRef(null);
@@ -50,7 +50,7 @@ const Invoice = ({ booking, onClose, onDownload, onEmail }) => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <div className="bg-white p-3 rounded-lg shadow-sm">
-                <LogoDark className="w-32" />
+                <img src={getLogoUrl('dark')} alt="logo" className="w-32" />
               </div>
               <div>
                 <h2 className="text-3xl font-primary text-primary mb-1">

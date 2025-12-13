@@ -234,7 +234,7 @@ public class AuthService : IAuthService
 
         return new OAuthUrls
         {
-            GoogleAuthUrl = $"https://accounts.google.com/o/oauth2/v2/auth?client_id={googleClientId}&redirect_uri={Uri.EscapeDataString(googleCallbackUrl)}&response_type=code&scope=openid email profile&access_type=offline&prompt=consent",
+            GoogleAuthUrl = $"https://accounts.google.com/o/oauth2/v2/auth?client_id={googleClientId}&redirect_uri={Uri.EscapeDataString(googleCallbackUrl)}&response_type=code&scope=openid email profile&access_type=offline&prompt=select_account",
             FacebookAuthUrl = $"https://www.facebook.com/v18.0/dialog/oauth?client_id={facebookAppId}&redirect_uri={Uri.EscapeDataString(facebookCallbackUrl)}&scope=email",
             RedirectUri = frontendCallbackUrl
         };

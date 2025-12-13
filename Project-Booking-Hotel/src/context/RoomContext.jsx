@@ -14,6 +14,7 @@ import {
   fetchHolidayCalendar,
   updateRoomStatus,
   addRoomStatusHistory,
+  fetchRoomStatusBoard,
 } from "../services/roomService";
 import {
   fetchUserBookings,
@@ -240,9 +241,25 @@ export const RoomContext = ({ children }) => {
         ]);
         
         if (dbRooms && dbRooms.length > 0) {
-          // Transform DB rooms to frontend shape
-          const transformedRooms = dbRooms.map((dbRoom) =>
-            transformDbRoomToFrontend(dbRoom, [])
+          // Fetch all reviews một lần để map vào từng phòng
+          // QUAN TRỌNG: Chỉ fetch theo room_id cụ thể, KHÔNG fallback về room_type_id
+          // để tránh reviews hiển thị cho tất cả phòng cùng loại
+          const allReviews = await Promise.all(
+            dbRooms.map(async (dbRoom) => {
+              try {
+                // CHỈ fetch reviews theo room_id cụ thể (không fallback về room_type_id)
+                const roomReviews = await fetchRoomReviews(dbRoom.id, null);
+                return roomReviews || [];
+              } catch (err) {
+                console.warn(`Failed to fetch reviews for room ${dbRoom.room_no}:`, err);
+                return [];
+              }
+            })
+          );
+          
+          // Transform DB rooms to frontend shape với reviews tương ứng
+          const transformedRooms = dbRooms.map((dbRoom, index) =>
+            transformDbRoomToFrontend(dbRoom, allReviews[index] || [])
           );
           setAllRooms(transformedRooms);
           setRooms(transformedRooms);
@@ -1159,7 +1176,7 @@ export const RoomContext = ({ children }) => {
           totalNights: breakdown.length,
           totalPrice: total,
           pricingBreakdown: breakdown,
-          status: "modified",
+          status: "confirmed", // Changed from "modified" - use confirmed with note instead
           history: [
             ...(booking.history || []),
             {
@@ -1173,7 +1190,7 @@ export const RoomContext = ({ children }) => {
 
         // ✅ SYNC TO SUPABASE
         if (dbConnected && booking.id !== "pending") {
-          updateBookingStatus(booking.id, "modified", {
+          updateBookingStatus(booking.id, "confirmed", { // Changed from "modified" - use confirmed with note instead
             check_in: normalizedCheckIn,
             check_out: normalizedCheckOut,
           }).then((updated) => {
@@ -1293,8 +1310,10 @@ export const RoomContext = ({ children }) => {
 
     // ✅ SAVE TO SUPABASE
     if (dbConnected) {
+      // QUAN TRỌNG: Lưu với room_id cụ thể, KHÔNG lưu room_type_id để tránh áp dụng cho tất cả phòng cùng loại
+      const room = getRoomById(roomId);
       const reviewData = {
-        room_type_id: roomId, // Note: DB schema expects room_type_id, not room_id
+        room_id: roomId, // CHỈ lưu room_id cụ thể
         user_id: review.userId,
         user_name: review.userName,
         user_email: review.userEmail,
@@ -1306,7 +1325,33 @@ export const RoomContext = ({ children }) => {
       createReview(reviewData)
         .then((dbReview) => {
           if (dbReview) {
-            console.log('✅ Review saved to Supabase');
+            console.log('✅ Review saved to Supabase for room:', roomId);
+            // Reload reviews từ DB để sync
+            fetchRoomReviews(roomId, null).then((updatedReviews) => {
+              if (updatedReviews && updatedReviews.length > 0) {
+                const normalized = updatedReviews.map((r) => ({
+                  id: r.id,
+                  userId: r.user_id,
+                  userName: r.user_name,
+                  userEmail: r.user_email,
+                  rating: r.rating,
+                  comment: r.comment,
+                  createdAt: r.created_at,
+                  stayDate: r.stay_date,
+                }));
+                // Update chỉ phòng cụ thể
+                setAllRooms((prevRooms) =>
+                  prevRooms.map((r) =>
+                    r.id === roomId ? { ...r, reviews: normalized } : r
+                  )
+                );
+                setRooms((prevRooms) =>
+                  prevRooms.map((r) =>
+                    r.id === roomId ? { ...r, reviews: normalized } : r
+                  )
+                );
+              }
+            });
           }
         })
         .catch((err) => {

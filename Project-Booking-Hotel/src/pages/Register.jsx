@@ -3,8 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/SimpleAuthContext';
 import { FaEnvelope, FaLock, FaUser, FaSpinner, FaGoogle, FaFacebook, FaCheck, FaTimes } from 'react-icons/fa';
 import Toast from '../components/Toast';
-
-const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
+import { getLogoUrl } from '../utils/supabaseStorageUrls';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -116,18 +115,35 @@ const Register = () => {
 
   const handleOAuthLogin = async (provider) => {
     setError('');
-    const result = await loginWithOAuth(provider);
     
-    if (result.success) {
-      setToast({
-        message: `Welcome, ${result.user.name || result.user.email}!`,
-        type: 'success'
-      });
-      setTimeout(() => {
-        navigate('/', { replace: true });
-      }, 1500);
-    } else {
-      setError(`Failed to login with ${provider}`);
+    try {
+      const result = await loginWithOAuth(provider);
+      
+      if (result.success) {
+        // Nếu đang redirect, không cần hiển thị toast
+        if (result.redirecting) {
+          // Đang redirect đến OAuth provider, không cần làm gì
+          return;
+        }
+        
+        // Nếu có user data (trường hợp hiếm)
+        if (result.user) {
+          setToast({
+            message: `Welcome, ${result.user.name || result.user.email}!`,
+            type: 'success'
+          });
+          setTimeout(() => {
+            navigate('/', { replace: true });
+          }, 1500);
+        }
+      } else {
+        setError(result.error || `Failed to login with ${provider}. Please try again.`);
+        // Tắt auto-redirect - user sẽ thấy error message và có thể thử lại
+      }
+    } catch (err) {
+      console.error('OAuth login error:', err);
+      setError(`Failed to login with ${provider}. Please try again.`);
+      // Tắt auto-redirect - user sẽ thấy error message và có thể thử lại
     }
   };
 
@@ -142,7 +158,7 @@ const Register = () => {
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           <div className="bg-gradient-to-r from-accent to-accent-hover p-8 text-center">
             <div className="flex justify-center mb-4">
-              <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[180px] brightness-0 invert" />
+              <img src={getLogoUrl('dark')} alt="logo" className="w-[180px] brightness-0 invert" />
             </div>
             <h1 className="text-2xl font-primary text-white mb-2">Create Account</h1>
             <p className="text-white/90 text-sm">Join us and start booking</p>

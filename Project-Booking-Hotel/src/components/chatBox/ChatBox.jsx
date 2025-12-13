@@ -774,13 +774,13 @@ const ChatBox = () => {
               </div>
             )}
 
-            {/* Payment stage placeholder */}
-            {stage === "payment" && (
+            {/* Payment stage - QR Payment Modal will handle this */}
+            {stage === "payment" && bookingConfirmed && (
               <div className="p-4 bg-white border border-gray-200 rounded-2xl animate-fade-in space-y-4">
                 <h3 className="font-semibold text-gray-900">💳 Payment</h3>
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-900">
-                  Payment gateway integration coming soon. Your booking details
-                  have been saved.
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
+                  <p className="font-semibold mb-2">QR Payment Modal is opening...</p>
+                  <p>Please complete the payment using the QR code shown in the modal.</p>
                 </div>
               </div>
             )}

@@ -188,6 +188,52 @@ export const fetchRoomsWithImages = async () => {
   }
 };
 
+/**
+ * Fetch available rooms for a given date range and guest count
+ * @param {string} checkIn - ISO date string
+ * @param {string} checkOut - ISO date string
+ * @param {number} guests - Number of guests
+ * @returns {Promise<Array>} Array of available rooms with pricing
+ */
+export const fetchAvailableRooms = async (checkIn, checkOut, guests = 1) => {
+  try {
+    // Fetch all active rooms
+    const rooms = await fetchRooms();
+    
+    // Filter rooms by capacity
+    const capacityFiltered = rooms.filter(room => {
+      const roomType = room.room_type;
+      const baseCapacity = roomType?.base_capacity || 2;
+      return baseCapacity >= guests;
+    });
+
+    // Check availability for each room
+    const availabilityPromises = capacityFiltered.map(async (room) => {
+      const isAvailable = await checkRoomAvailability(room.id, checkIn, checkOut);
+      return { ...room, available: isAvailable };
+    });
+
+    const roomsWithAvailability = await Promise.all(availabilityPromises);
+    
+    // Filter only available rooms and format for AvailabilityViewer
+    const availableRooms = roomsWithAvailability
+      .filter(room => room.available && room.status === 'available')
+      .map(room => ({
+        id: room.id,
+        name: room.room_no, // For AvailabilityViewer display
+        type: room.room_type?.name || 'N/A',
+        capacity: room.room_type?.base_capacity || 2,
+        price: room.price || 0,
+        status: room.status,
+      }));
+
+    return availableRooms;
+  } catch (err) {
+    console.error('Error fetching available rooms:', err);
+    return [];
+  }
+};
+
 export const checkRoomAvailability = async (roomId, checkIn, checkOut, excludeBookingId = null) => {
   try {
     // Calculate cutoff time: pending_payment bookings older than 15 minutes are considered expired
@@ -388,6 +434,59 @@ export const getAllImages = async (roomTypeId) => {
   }
 };
 
+/**
+ * Room status board (view) + history helpers
+ */
+export const fetchRoomStatusBoard = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('room_status_board')
+      .select('*')
+      .order('room_no', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching room status board:', err);
+    return [];
+  }
+};
+
+export const addRoomStatusHistory = async ({ roomId, status, note = null, actor = null }) => {
+  try {
+    const payload = {
+      room_id: roomId,
+      status,
+      note,
+      actor,
+      started_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('room_status_history')
+      .insert([payload])
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error adding room status history:', err);
+    return null;
+  }
+};
+
+export const updateRoomStatus = async (roomId, status) => {
+  try {
+    const { data, error } = await supabase
+      .from('rooms')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', roomId)
+      .select();
+    if (error) throw error;
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Error updating room status:', err);
+    return null;
+  }
+};
+
 export default {
   fetchRoomTypes,
   createRoomType,
@@ -399,6 +498,7 @@ export default {
   deleteRoom,
   fetchRoomImages,
   fetchRoomsWithImages,
+  fetchAvailableRooms,
   checkRoomAvailability,
   fetchPriceRules,
   fetchPromotions,

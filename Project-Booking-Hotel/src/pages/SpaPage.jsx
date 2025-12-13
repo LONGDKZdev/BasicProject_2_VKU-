@@ -2,8 +2,15 @@ import { useState, useEffect } from 'react';
 import { ScrollToTop, Toast } from '../components';
 import QRPayment from '../components/QRPayment';
 import Invoice from '../components/Invoice';
+import ServiceSelector from '../components/ServiceSelector';
+import AvailabilityViewer from '../components/AvailabilityViewer';
 import { useBookingContext } from '../context/BookingContext';
 import { useAuth } from '../context/SimpleAuthContext';
+import {
+  fetchSpaServices,
+  fetchSpaSlotsByDateTime,
+  updateSpaSlotUsage,
+} from '../services/bookingService';
 // ⚠️ Local images removed - now use Supabase URLs
 import { FaSpa, FaClock, FaMapMarkerAlt, FaPhoneAlt, FaStar, FaCheck, FaLeaf, FaWater, FaHandSparkles } from 'react-icons/fa';
 
@@ -21,13 +28,40 @@ const spaCategories = [
 
 // Helper function to get image for spa services
 // Uses Supabase Storage URLs based on room types when available
-const getSpaServiceImage = (id) => {
-  // Use id to cycle through images 1-8.png
+const getSpaServiceImage = (id, imageUrl = null, displayOrder = null) => {
+  // If image_url from DB is valid and NOT a placeholder, use it
+  if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('via.placeholder.com')) {
+    return imageUrl;
+  }
+  
+  // Fallback: Use display_order or hash id to cycle through images 1-8.png
   // Images are named 1-lg.png through 8-lg.png for large format
   if (!id) return PLACEHOLDER_IMG_SERVICE;
   
-  const imgIndex = (id % 8) === 0 ? 8 : (id % 8);
-  return `${STORAGE_URL}/${imgIndex}-lg.png` || PLACEHOLDER_IMG_SERVICE;
+  // If display_order is available, use it directly
+  let imgIndex = 1;
+  if (displayOrder && typeof displayOrder === 'number') {
+    imgIndex = ((displayOrder - 1) % 8) + 1;
+  } else {
+    // Hash UUID/string id to get consistent number 1-8
+    let hash = 0;
+    const idStr = String(id);
+    for (let i = 0; i < idStr.length; i++) {
+      hash = ((hash << 5) - hash) + idStr.charCodeAt(i);
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    imgIndex = (Math.abs(hash) % 8) + 1;
+  }
+  
+  const finalUrl = `${STORAGE_URL}/${imgIndex}-lg.png`;
+  // Test if image exists (async, non-blocking)
+  if (typeof window !== 'undefined') {
+    const img = new Image();
+    img.onerror = () => console.warn(`[Spa] Image not found: ${finalUrl}`);
+    img.onload = () => console.log(`[Spa] Image loaded: ${finalUrl}`);
+    img.src = finalUrl;
+  }
+  return finalUrl;
 };
 
 const spaServices = {
@@ -96,11 +130,15 @@ const testimonials = [
 const SpaPage = () => {
   const { user } = useAuth();
   const { createSpaBooking, confirmSpaBooking } = useBookingContext();
+  const [servicesByCategory, setServicesByCategory] = useState(spaServices);
+  const [serviceLookup, setServiceLookup] = useState({});
   const [activeCategory, setActiveCategory] = useState('massage');
   const [toast, setToast] = useState(null);
   const [showQRPayment, setShowQRPayment] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [currentBooking, setCurrentBooking] = useState(null);
+  const [selectedService, setSelectedService] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState(null);
   const [bookingForm, setBookingForm] = useState({
     name: '',
     email: '',
@@ -124,7 +162,52 @@ const SpaPage = () => {
     }
   }, [user]);
 
-  const handleBookingSubmit = (e) => {
+  // Load spa services from Supabase (fallback to static if error)
+  useEffect(() => {
+    const loadSpaServices = async () => {
+      try {
+        const data = await fetchSpaServices();
+        if (!data || data.length === 0) {
+          console.warn('[Spa] No services from Supabase, using static data');
+          return;
+        }
+        console.log(`[Spa] Loaded ${data.length} services from Supabase`);
+
+        const grouped = data.reduce((acc, item) => {
+          const cat = (item.category || 'other').toLowerCase();
+          acc[cat] = acc[cat] || [];
+          acc[cat].push({
+            id: item.id,
+            code: item.code,
+            name: item.name,
+            description: item.description,
+            duration: `${item.duration_minutes} min`,
+            price: Number(item.price) || 0,
+            popular: item.is_active,
+            image: getSpaServiceImage(item.id, item.image_url, item.display_order),
+            includes: item.includes || item.perks || null,
+          });
+          return acc;
+        }, {});
+
+        const lookup = {};
+        Object.values(grouped).forEach((list) => {
+          list.forEach((svc) => {
+            lookup[svc.name] = svc;
+          });
+        });
+
+        setServicesByCategory(grouped);
+        setServiceLookup(lookup);
+        setActiveCategory(Object.keys(grouped)[0] || 'massage');
+      } catch (err) {
+        console.warn('Fallback to static spa services, fetch error:', err);
+      }
+    };
+    loadSpaServices();
+  }, []);
+
+  const handleBookingSubmit = async (e) => {
     e.preventDefault();
     if (!bookingForm.name || !bookingForm.email || !bookingForm.date || !bookingForm.time || !bookingForm.service) {
       setToast({
@@ -134,16 +217,51 @@ const SpaPage = () => {
       return;
     }
 
-    // Find service price
-    const allServices = Object.values(spaServices).flat();
-    const selectedService = allServices.find(s => s.name === bookingForm.service);
-    const price = selectedService?.price || 100;
+    // Require service and slot selection
+    if (!selectedService) {
+      setToast({
+        type: 'error',
+        message: 'Please select a service from the list above.',
+      });
+      return;
+    }
+
+    if (!selectedSlot) {
+      setToast({
+        type: 'error',
+        message: 'Please select an available slot from the list above.',
+      });
+      return;
+    }
+
+    const price = selectedService.price || 100;
+    const duration = selectedService.duration || '60 min';
+    // Ensure proper ISO format: YYYY-MM-DDTHH:MM:SS
+    const appointmentAt = bookingForm.date && bookingForm.time 
+      ? `${bookingForm.date}T${bookingForm.time}:00` 
+      : `${bookingForm.date}T${bookingForm.time}`;
+
+    // Verify selected slot is still available
+    const slots = await fetchSpaSlotsByDateTime(selectedService.id, appointmentAt, bookingForm.therapist || null);
+    const availableSlot = slots.find((s) => s.id === selectedSlot.slotId && s.status === 'available');
+    
+    if (!availableSlot) {
+      setToast({
+        type: 'error',
+        message: 'Selected slot is no longer available. Please select another slot.',
+      });
+      setSelectedSlot(null);
+      return;
+    }
+
+    // Update slot usage
+    await updateSpaSlotUsage(availableSlot.id);
 
     const result = createSpaBooking({
       name: bookingForm.name,
       email: bookingForm.email,
       phone: bookingForm.phone,
-      date: `${bookingForm.date}T${bookingForm.time}`,
+      date: appointmentAt, // Use the properly formatted appointmentAt
       service: bookingForm.service,
       serviceName: bookingForm.service,
       therapist: bookingForm.therapist,
@@ -153,7 +271,7 @@ const SpaPage = () => {
       userEmail: bookingForm.email,
       price,
       totalPrice: price,
-      duration: selectedService?.duration || '60 min',
+      duration,
     });
 
     if (result?.success) {
@@ -260,7 +378,7 @@ const SpaPage = () => {
 
         {/* Services Grid */}
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-          {spaServices[activeCategory].map((service) => (
+          {(servicesByCategory[activeCategory] || []).map((service) => (
             <div
               key={service.id}
               className='bg-white shadow-sm border border-[#eadfcf] hover:shadow-lg transition-shadow cursor-pointer overflow-hidden'
@@ -271,6 +389,10 @@ const SpaPage = () => {
                   src={service.image}
                   alt={service.name}
                   className='w-full h-full object-cover hover:scale-110 transition-transform duration-300'
+                  onError={(e) => {
+                    console.error(`[Spa] Failed to load image: ${service.image}`);
+                    e.target.src = PLACEHOLDER_IMG_SERVICE;
+                  }}
                 />
                 {service.popular && (
                   <span className='absolute top-3 right-3 flex items-center gap-1 bg-accent text-white px-3 py-1 rounded-full text-xs'>
@@ -410,18 +532,27 @@ const SpaPage = () => {
                 </div>
               </div>
 
+              {/* Service Selection - Integrated in Form */}
               <div>
-                <label className='block text-sm font-semibold mb-2'>Service *</label>
-                <input
-                  type='text'
-                  name='service'
-                  value={bookingForm.service}
-                  onChange={handleInputChange}
-                  className='w-full border border-[#eadfcf] px-4 py-3 focus:outline-none focus:border-accent'
-                  placeholder='Select a service from above or type here'
-                  required
+                <label className='block text-sm font-semibold mb-2'>Select Service *</label>
+                <ServiceSelector
+                  type="spa"
+                  items={Object.values(servicesByCategory).flat()}
+                  selected={selectedService?.id}
+                  onSelect={(service) => {
+                    setSelectedService(service);
+                    setBookingForm(prev => ({
+                      ...prev,
+                      service: service.name
+                    }));
+                    setSelectedSlot(null); // Reset slot when service changes
+                  }}
+                  className="mb-4"
+                  maxHeight="200px"
                 />
-                <p className='text-xs text-primary/60 mt-1'>Click on a service card above to auto-fill</p>
+                {!selectedService && (
+                  <p className="text-xs text-red-500 mt-1">Please select a service to continue</p>
+                )}
               </div>
 
               <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
@@ -431,7 +562,10 @@ const SpaPage = () => {
                     type='date'
                     name='date'
                     value={bookingForm.date}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      setSelectedSlot(null); // Reset slot when date changes
+                    }}
                     min={new Date().toISOString().split('T')[0]}
                     className='w-full border border-[#eadfcf] px-4 py-3 focus:outline-none focus:border-accent'
                     required
@@ -443,12 +577,42 @@ const SpaPage = () => {
                     type='time'
                     name='time'
                     value={bookingForm.time}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      setSelectedSlot(null); // Reset slot when time changes
+                    }}
                     className='w-full border border-[#eadfcf] px-4 py-3 focus:outline-none focus:border-accent'
                     required
                   />
                 </div>
               </div>
+
+              {/* Availability Viewer - Show available slots */}
+              {selectedService && bookingForm.date && bookingForm.time && (
+                <div>
+                  <label className='block text-sm font-semibold mb-2'>Available Slots *</label>
+                  <AvailabilityViewer
+                    type="spa"
+                    dateTime={`${bookingForm.date}T${bookingForm.time}`}
+                    serviceId={selectedService.id}
+                    therapist={bookingForm.therapist || null}
+                    onSelect={(slot) => {
+                      setSelectedSlot(slot);
+                      if (slot.therapist) {
+                        setBookingForm(prev => ({
+                          ...prev,
+                          therapist: slot.therapist
+                        }));
+                      }
+                      console.log('[Spa] Selected slot:', slot);
+                    }}
+                    className="mb-4"
+                  />
+                  {!selectedSlot && (
+                    <p className="text-xs text-red-500 mt-1">Please select a slot to continue</p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className='block text-sm font-semibold mb-2'>Special Requests</label>

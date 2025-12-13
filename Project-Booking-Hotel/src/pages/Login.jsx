@@ -3,8 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/SimpleAuthContext';
 import { FaEnvelope, FaLock, FaSpinner, FaGoogle, FaFacebook, FaUserShield, FaUser } from 'react-icons/fa';
 import Toast from '../components/Toast';
-
-const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
+import { getLogoUrl } from '../utils/supabaseStorageUrls';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -98,6 +97,7 @@ const Login = () => {
         }
       } else {
         setError(result.error || `Failed to login with ${provider}`);
+        // Tắt auto-redirect - user sẽ thấy error message và có thể thử lại
       }
     } catch (err) {
       console.error('OAuth login error:', err);
@@ -116,7 +116,7 @@ const Login = () => {
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           <div className="bg-gradient-to-r from-accent to-accent-hover p-8 text-center">
             <div className="flex justify-center mb-4">
-              <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[180px] brightness-0 invert" />
+              <img src={getLogoUrl('dark')} alt="logo" className="w-[180px] brightness-0 invert" />
             </div>
             <h1 className="text-2xl font-primary text-white mb-2">
               Sign In

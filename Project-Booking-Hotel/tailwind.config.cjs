@@ -26,7 +26,7 @@ module.exports = {
         },
       },
       backgroundImage: {
-        room: "url('/src/assets/img/room.jpg')",
+        room: "url('https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/room.jpg')",
       },
     },
   },

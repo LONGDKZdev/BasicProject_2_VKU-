@@ -7,7 +7,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Toast from '../components/Toast';
 import { FaSuitcaseRolling, FaCalendarAlt, FaUserCircle, FaCamera, FaEdit, FaTimes, FaLock, FaEnvelope } from 'react-icons/fa';
-import { LogoDark } from '../assets';
+import { getLogoUrl } from '../utils/supabaseStorageUrls';
 import { sendVerificationCode, verifyCodeAndResetPassword } from '../services/csharpApiService';
 import { hashPassword } from '../services/simpleAuthService';
 import { supabase } from '../utils/supabaseClient';
@@ -348,19 +348,25 @@ const UserDashboard = () => {
                     <p className='font-semibold text-lg'>Restaurant Reservation</p>
                     <p className='text-sm text-primary/70 flex items-center gap-2'>
                       <FaCalendarAlt />
-                      Time: {new Date(booking.checkIn).toLocaleString('vi-VN')}
+                      Time: {booking.checkIn ? new Date(booking.checkIn).toLocaleString('vi-VN') : 'N/A'}
                     </p>
-                    <p className='text-sm text-primary/70'>Guests: {booking.guests} people. Table for {booking.name}</p>
+                    <p className='text-sm text-primary/70'>Guests: {booking.guests || 1} people{booking.userName ? `. Reserved by ${booking.userName}` : ''}</p>
+                    {booking.specialRequests && (
+                      <p className='text-xs text-primary/50 mt-1'>Note: {booking.specialRequests}</p>
+                    )}
                   </>
                 )}
                 {booking.type === 'spa' && (
                   <>
-                    <p className='font-semibold text-lg'>Spa Appointment: {booking.serviceName}</p>
+                    <p className='font-semibold text-lg'>Spa Appointment: {booking.serviceName || 'Spa Service'}</p>
                     <p className='text-sm text-primary/70 flex items-center gap-2'>
                       <FaCalendarAlt />
-                      Time: {new Date(booking.checkIn).toLocaleString('vi-VN')}
+                      Time: {booking.checkIn ? new Date(booking.checkIn).toLocaleString('vi-VN') : 'N/A'}
                     </p>
-                    <p className='text-sm text-primary/70'>Therapist: {booking.therapist || 'Any'} ({booking.serviceDuration})</p>
+                    <p className='text-sm text-primary/70'>Therapist: {booking.therapist || 'Any'}{booking.duration ? ` (${booking.duration})` : ''}</p>
+                    {booking.specialRequests && (
+                      <p className='text-xs text-primary/50 mt-1'>Note: {booking.specialRequests}</p>
+                    )}
                   </>
                 )}
                 <span className='inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider bg-accent/20 text-accent'>{booking.type}</span>
@@ -800,7 +806,7 @@ const UserDashboard = () => {
   return (
     <div className='min-h-screen py-12 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.94),_rgba(247,244,239,0.98))]'>
       <div className='container mx-auto px-6 lg:px-0'>
-        <LogoDark className='w-40 mx-auto mb-10 opacity-80' />
+        <img src={getLogoUrl('dark')} alt="logo" className='w-40 mx-auto mb-10 opacity-80' />
         <div className='grid lg:grid-cols-4 gap-8'>
           <aside className='bg-white/95 backdrop-blur-sm border border-[#eadfcf] rounded-2xl p-6 shadow-xl'>
             <div className='text-center mb-8'>

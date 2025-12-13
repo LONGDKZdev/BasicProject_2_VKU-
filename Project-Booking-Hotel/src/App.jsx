@@ -14,7 +14,6 @@ import {
   UserDashboard,
   RestaurantPage,
   SpaPage,
-  CleanupPage,
   NotFound404,
   AuthCallback,
   SetPassword,
@@ -47,6 +46,7 @@ const AppContent = () => {
       <Routes>
         <Route path={"/"} element={<Home />} />
         <Route path={"/room/:id"} element={<RoomDetails />} />
+        <Route path={"/room/:roomNo"} element={<RoomDetails />} />
         <Route path={"/rooms"} element={<RoomsPage />} />
         <Route path={"/restaurant"} element={<RestaurantPage />} />
         <Route path={"/spa"} element={<SpaPage />} />
@@ -74,7 +74,6 @@ const AppContent = () => {
             </ProtectedRoute>
           }
         />
-        <Route path={"/cleanup"} element={<CleanupPage />} />
         <Route path={"*"} element={<NotFound404 />} />
       </Routes>
 

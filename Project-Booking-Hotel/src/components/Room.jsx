@@ -46,10 +46,10 @@ const Room = ({ room }) => {
   // Use Supabase image URL if available, otherwise use fallback
   const displayImage = image || getFallbackImageUrl(roomNo, type);
 
-  // Calculate average rating from reviews
+  // Calculate average rating from reviews (không có thì hiển thị null, không cứng 4.0)
   const averageRating = reviews && reviews.length > 0
-    ? Math.round(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length)
-    : 4;
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+    : null;
 
   return (
     <div className="bg-white shadow-2xl min-h-[500px] group relative">
@@ -115,17 +115,23 @@ const Room = ({ room }) => {
           {description ? description.slice(0, 56) : 'Comfortable room with modern amenities'}..
         </p>
         <div className="flex justify-center items-center gap-2 mb-4 text-sm text-primary/80">
-          <div className="flex items-center gap-1 text-accent">
-            {[...Array(5)].map((_, index) => (
-              <FaStar
-                key={index}
-                className={`${
-                  index < averageRating ? "text-accent" : "text-accent/30"
-                }`}
-              />
-            ))}
-          </div>
-          <span>{averageRating}.0 • {reviews?.length || 0} reviews</span>
+          {averageRating ? (
+            <>
+              <div className="flex items-center gap-1 text-accent">
+                {[...Array(5)].map((_, index) => (
+                  <FaStar
+                    key={index}
+                    className={`${
+                      index < Math.round(parseFloat(averageRating)) ? "text-accent" : "text-accent/30"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span>{averageRating} • {reviews?.length || 0} {reviews?.length === 1 ? 'review' : 'reviews'}</span>
+            </>
+          ) : (
+            <span className="text-primary/60">No reviews yet</span>
+          )}
         </div>
       </div>
 

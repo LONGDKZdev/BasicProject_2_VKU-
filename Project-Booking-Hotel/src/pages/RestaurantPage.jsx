@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { ScrollToTop, Toast } from "../components";
 import QRPayment from "../components/QRPayment";
 import Invoice from "../components/Invoice";
+import ServiceSelector from "../components/ServiceSelector";
+import AvailabilityViewer from "../components/AvailabilityViewer";
 import { useBookingContext } from "../context/BookingContext";
 import { useAuth } from "../context/SimpleAuthContext";
 import {
@@ -367,6 +369,8 @@ const RestaurantPage = () => {
   const [showQRPayment, setShowQRPayment] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [currentBooking, setCurrentBooking] = useState(null);
+  const [selectedMenuItem, setSelectedMenuItem] = useState(null);
+  const [selectedTable, setSelectedTable] = useState(null);
   const [reservationForm, setReservationForm] = useState({
     name: "",
     email: "",
@@ -449,26 +453,38 @@ const RestaurantPage = () => {
     }
 
     const guests = parseInt(reservationForm.guests, 10) || 1;
-    const reservationAt = `${reservationForm.date}T${reservationForm.time}`;
+    // Ensure proper ISO format: YYYY-MM-DDTHH:MM:SS
+    const reservationAt = reservationForm.date && reservationForm.time 
+      ? `${reservationForm.date}T${reservationForm.time}:00` 
+      : `${reservationForm.date}T${reservationForm.time}`;
 
-    // Check slot availability from Supabase
+    // Require table selection
+    if (!selectedTable) {
+      setToast({
+        type: "error",
+        message: "Please select a table from the available tables above.",
+      });
+      return;
+    }
+
+    // Use selected table
     const slots = await fetchRestaurantSlotsByDateTime(reservationAt);
-    const availableSlot = slots
-      .filter(
-        (slot) =>
-          slot.status !== "booked" &&
-          (slot.capacity_limit - slot.capacity_used) >= guests
-      )
-      .sort(
-        (a, b) =>
-          (a.restaurant_tables?.capacity || a.capacity_limit) -
-          (b.restaurant_tables?.capacity || b.capacity_limit)
-      )[0];
+    const availableSlot = slots.find(s => s.id === selectedTable.slotId);
 
     if (!availableSlot) {
       setToast({
         type: "error",
-        message: "No available table for this time/guest count.",
+        message: "Selected table is no longer available. Please select another table.",
+      });
+      setSelectedTable(null);
+      return;
+    }
+
+    // Check capacity
+    if ((availableSlot.capacity_limit - availableSlot.capacity_used) < guests) {
+      setToast({
+        type: "error",
+        message: `Selected table only has ${availableSlot.capacity_limit - availableSlot.capacity_used} seats available. Please select a larger table.`,
       });
       return;
     }
@@ -479,23 +495,39 @@ const RestaurantPage = () => {
     // Price demo: $50/guest if no menu selection
     const price = guests * 50;
 
-    const result = createRestaurantBooking({
-      name: reservationForm.name,
-      email: reservationForm.email,
-      phone: reservationForm.phone,
-      date: reservationAt,
-      guests,
-      specialRequests: reservationForm.specialRequests,
-      userId: user?.id,
-      userName: reservationForm.name,
-      userEmail: reservationForm.email,
-      price,
-      totalPrice: price,
-    });
+    // Create booking through context (which handles confirmation code)
+    try {
+      const result = createRestaurantBooking({
+        name: reservationForm.name,
+        email: reservationForm.email,
+        phone: reservationForm.phone,
+        date: reservationAt,
+        guests,
+        specialRequests: reservationForm.specialRequests,
+        userId: user?.id,
+        userName: reservationForm.name,
+        userEmail: reservationForm.email,
+        price,
+        totalPrice: price,
+        tableId: availableSlot.table_id, // Pass table_id for reference
+        slotId: availableSlot.id, // Pass slot_id for reference
+      });
 
-    if (result?.success) {
-      setCurrentBooking(result.booking);
-      setShowQRPayment(true);
+      if (result?.success) {
+        setCurrentBooking(result.booking);
+        setShowQRPayment(true);
+      } else {
+        setToast({
+          type: "error",
+          message: "Failed to create booking. Please try again.",
+        });
+      }
+    } catch (error) {
+      console.error('Error in handleReservationSubmit:', error);
+      setToast({
+        type: "error",
+        message: error.message || "Failed to create booking. Please check console for details.",
+      });
     }
   };
 
@@ -783,6 +815,21 @@ const RestaurantPage = () => {
                 </div>
               </div>
 
+              {/* Service/Menu Selection - Integrated in Form */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">
+                  Select Menu Item (Optional)
+                </label>
+                <ServiceSelector
+                  type="restaurant"
+                  items={Object.values(menuData).flat()}
+                  selected={selectedMenuItem?.id}
+                  onSelect={(item) => setSelectedMenuItem(item)}
+                  className="mb-4"
+                  maxHeight="200px"
+                />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-sm font-semibold mb-2">
@@ -792,7 +839,10 @@ const RestaurantPage = () => {
                     type="date"
                     name="date"
                     value={reservationForm.date}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      setSelectedTable(null); // Reset table selection when date changes
+                    }}
                     min={new Date().toISOString().split("T")[0]}
                     className="w-full border border-[#eadfcf] px-4 py-3 focus:outline-none focus:border-accent"
                     required
@@ -806,12 +856,37 @@ const RestaurantPage = () => {
                     type="time"
                     name="time"
                     value={reservationForm.time}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      setSelectedTable(null); // Reset table selection when time changes
+                    }}
                     className="w-full border border-[#eadfcf] px-4 py-3 focus:outline-none focus:border-accent"
                     required
                   />
                 </div>
               </div>
+
+              {/* Availability Viewer - Show available tables */}
+              {reservationForm.date && reservationForm.time && (
+                <div>
+                  <label className="block text-sm font-semibold mb-2">
+                    Available Tables *
+                  </label>
+                  <AvailabilityViewer
+                    type="restaurant"
+                    dateTime={`${reservationForm.date}T${reservationForm.time}`}
+                    guests={parseInt(reservationForm.guests, 10) || 1}
+                    onSelect={(table) => {
+                      setSelectedTable(table);
+                      console.log('[Restaurant] Selected table:', table);
+                    }}
+                    className="mb-4"
+                  />
+                  {!selectedTable && (
+                    <p className="text-xs text-red-500 mt-1">Please select a table to continue</p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold mb-2">

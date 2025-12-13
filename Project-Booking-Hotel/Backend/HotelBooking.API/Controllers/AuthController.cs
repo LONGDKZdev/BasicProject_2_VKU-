@@ -101,13 +101,28 @@ public class AuthController : ControllerBase
             
             if (result.Success && result.User != null)
             {
+                // Đảm bảo email không rỗng
+                if (string.IsNullOrWhiteSpace(result.User.Email))
+                {
+                    _logger.LogError("Google OAuth returned empty email");
+                    var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
+                    return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString("Failed to get email from Google. Please try again.")}");
+                }
+                
                 // Redirect to frontend với user info
                 var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
-                var redirectUrl = $"{frontendUrl}/auth/callback?provider=google&email={Uri.EscapeDataString(result.User.Email)}&name={Uri.EscapeDataString(result.User.Name ?? "")}";
+                var email = Uri.EscapeDataString(result.User.Email);
+                var name = Uri.EscapeDataString(result.User.Name ?? result.User.Email ?? "User");
+                var redirectUrl = $"{frontendUrl}/auth/callback?provider=google&email={email}&name={name}";
+                
+                _logger.LogInformation($"Google OAuth success: {result.User.Email}");
                 return Redirect(redirectUrl);
             }
             
-            return Ok(result);
+            // Nếu không success hoặc User null
+            _logger.LogWarning($"Google OAuth failed: Success={result.Success}, User={result.User != null}");
+            var errorFrontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
+            return Redirect($"{errorFrontendUrl}/auth/callback?error={Uri.EscapeDataString(result.Message ?? "Google authentication failed")}");
         }
         catch (Exception ex)
         {
@@ -134,13 +149,28 @@ public class AuthController : ControllerBase
             
             if (result.Success && result.User != null)
             {
+                // Đảm bảo email không rỗng
+                if (string.IsNullOrWhiteSpace(result.User.Email))
+                {
+                    _logger.LogError("Facebook OAuth returned empty email");
+                    var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
+                    return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString("Failed to get email from Facebook. Please try again.")}");
+                }
+                
                 // Redirect to frontend với user info
                 var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
-                var redirectUrl = $"{frontendUrl}/auth/callback?provider=facebook&email={Uri.EscapeDataString(result.User.Email)}&name={Uri.EscapeDataString(result.User.Name ?? "")}";
+                var email = Uri.EscapeDataString(result.User.Email);
+                var name = Uri.EscapeDataString(result.User.Name ?? result.User.Email ?? "User");
+                var redirectUrl = $"{frontendUrl}/auth/callback?provider=facebook&email={email}&name={name}";
+                
+                _logger.LogInformation($"Facebook OAuth success: {result.User.Email}");
                 return Redirect(redirectUrl);
             }
             
-            return Ok(result);
+            // Nếu không success hoặc User null
+            _logger.LogWarning($"Facebook OAuth failed: Success={result.Success}, User={result.User != null}");
+            var errorFrontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
+            return Redirect($"{errorFrontendUrl}/auth/callback?error={Uri.EscapeDataString(result.Message ?? "Facebook authentication failed")}");
         }
         catch (Exception ex)
         {

@@ -92,7 +92,10 @@ const Contact = () => {
         
         if (dbError) {
           console.warn('Contact message table not found or error:', dbError);
-          // Continue with email fallback
+          // Continue with email fallback - table might not exist yet
+          // User can run Query_V2/02_Int_schema.sql to create it
+        } else {
+          console.log('✅ Contact message saved to database');
         }
       } catch (dbErr) {
         console.warn('Database save failed, using email only:', dbErr);

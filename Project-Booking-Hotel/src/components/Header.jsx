@@ -3,8 +3,7 @@ import { useAuth } from "../context/SimpleAuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { FaUser, FaSignOutAlt, FaSignInAlt } from "react-icons/fa";
-
-const STORAGE_URL = 'https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img';
+import { getLogoUrl } from "../utils/supabaseStorageUrls";
 
 const Header = () => {
   const { resetRoomFilterData } = useRoomContext();
@@ -55,9 +54,9 @@ const Header = () => {
       <div className="container mx-auto flex flex-col lg:flex-row items-center lg:justify-between gap-y-6 lg:gap-y-0">
         <Link to="/" onClick={resetRoomFilterData}>
           {header ? (
-            <img src={`${STORAGE_URL}/logo-dark.svg`} alt="logo" className="w-[160px]" />
+            <img src={getLogoUrl('dark')} alt="logo" className="w-[160px]" />
           ) : (
-            <img src={`${STORAGE_URL}/logo-white.svg`} alt="logo" className="w-[160px]" />
+            <img src={getLogoUrl('white')} alt="logo" className="w-[160px]" />
           )}
         </Link>
 

@@ -49,7 +49,8 @@ export const getRoomLargeImageUrl = (roomNumber) => {
  * @returns {string} Full Supabase Storage URL for logo
  */
 export const getLogoUrl = (type = 'dark') => {
-  return getRoomImageUrl(`logo-${type}.svg`);
+  // logos are stored under img/ in the bucket
+  return getRoomImageUrl(`img/logo-${type}.svg`);
 };
 
 /**

@@ -208,14 +208,36 @@ export const BookingProvider = ({ children }) => {
       status: 'pending_payment',
     }).then((dbBooking) => {
       if (dbBooking) {
+        // Use mapped format from DB to ensure consistency
+        const mappedBooking = mapRestaurantBookingFromDb(dbBooking);
+        setRestaurantBookings(prev => [mappedBooking, ...prev]);
+        console.log('✅ Restaurant booking synced to DB:', {
+          id: dbBooking.id,
+          confirmationCode,
+          userId: dbBooking.user_id,
+          reservationAt: dbBooking.reservation_at
+        });
+        // Update newBooking to match DB format for return value
         newBooking.id = dbBooking.id;
-        setRestaurantBookings(prev => [newBooking, ...prev]);
-        console.log('✅ Restaurant booking synced:', confirmationCode);
+        Object.assign(newBooking, mappedBooking);
+      } else {
+        console.warn('⚠️ Restaurant booking created but dbBooking is null');
       }
     }).catch((err) => {
       console.error('❌ Failed to save to Supabase:', err);
-      // Fallback to localStorage
-      setRestaurantBookings(prev => [newBooking, ...prev]);
+      console.error('Error details:', {
+        message: err.message,
+        details: err.details,
+        hint: err.hint,
+        code: err.code,
+        bookingData: {
+          userId: bookingData.userId,
+          name: bookingData.name,
+          email: bookingData.email
+        }
+      });
+      // Don't add to local state if save failed - user should retry
+      // setRestaurantBookings(prev => [newBooking, ...prev]);
     });
 
     return { success: true, booking: newBooking };
@@ -258,14 +280,36 @@ export const BookingProvider = ({ children }) => {
       status: 'pending_payment',
     }).then((dbBooking) => {
       if (dbBooking) {
+        // Use mapped format from DB to ensure consistency
+        const mappedBooking = mapSpaBookingFromDb(dbBooking);
+        setSpaBookings(prev => [mappedBooking, ...prev]);
+        console.log('✅ Spa booking synced to DB:', {
+          id: dbBooking.id,
+          confirmationCode,
+          userId: dbBooking.user_id,
+          appointmentAt: dbBooking.appointment_at
+        });
+        // Update newBooking to match DB format for return value
         newBooking.id = dbBooking.id;
-        setSpaBookings(prev => [newBooking, ...prev]);
-        console.log('✅ Spa booking synced:', confirmationCode);
+        Object.assign(newBooking, mappedBooking);
+      } else {
+        console.warn('⚠️ Spa booking created but dbBooking is null');
       }
     }).catch((err) => {
       console.error('❌ Failed to save to Supabase:', err);
-      // Fallback to localStorage
-      setSpaBookings(prev => [newBooking, ...prev]);
+      console.error('Error details:', {
+        message: err.message,
+        details: err.details,
+        hint: err.hint,
+        code: err.code,
+        bookingData: {
+          userId: bookingData.userId,
+          name: bookingData.name,
+          email: bookingData.email
+        }
+      });
+      // Don't add to local state if save failed - user should retry
+      // setSpaBookings(prev => [newBooking, ...prev]);
     });
 
     return { success: true, booking: newBooking };
@@ -318,10 +362,11 @@ export const BookingProvider = ({ children }) => {
       };
 
       // ✅ SYNC TO SUPABASE
+      // Note: paid_at column doesn't exist in restaurant_bookings schema
       updateRestaurantBookingStatus(booking.id, 'confirmed', {
         payment_method: paymentData.paymentMethod,
         payment_code: paymentData.paymentCode,
-        paid_at: confirmedBooking.paidAt,
+        // paid_at: confirmedBooking.paidAt, // Column doesn't exist in schema
       }).catch((err) => {
         console.error('❌ Failed to update Supabase:', err);
       });
@@ -353,10 +398,11 @@ export const BookingProvider = ({ children }) => {
       };
 
       // ✅ SYNC TO SUPABASE
+      // Note: paid_at column doesn't exist in spa_bookings schema
       updateSpaBookingStatus(booking.id, 'confirmed', {
         payment_method: paymentData.paymentMethod,
         payment_code: paymentData.paymentCode,
-        paid_at: confirmedBooking.paidAt,
+        // paid_at: confirmedBooking.paidAt, // Column doesn't exist in schema
       }).catch((err) => {
         console.error('❌ Failed to update Supabase:', err);
       });

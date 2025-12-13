@@ -31,9 +31,9 @@ const IGNORE_FILES = [
 // Chỉ đọc các định dạng file code này
 const ALLOWED_EXTENSIONS = [
     '.js', '.jsx', '.ts', '.tsx', 
-    '.css', '.scss', '.html', 
-    '.json', '.md', '.sql', 
-    '.toml', '.bat'
+    '.scss', '.html', 
+    '.json', '.sql', 
+    '.toml',
 ];
 
 // --- HÀM XỬ LÝ ---

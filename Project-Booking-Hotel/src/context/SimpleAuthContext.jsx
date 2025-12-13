@@ -201,18 +201,46 @@ export const SimpleAuthContext = ({ children }) => {
 
   /**
    * Reset Password Request
+   * Ưu tiên dùng C# API, fallback sang Supabase nếu C# API không khả dụng
    */
   const resetPasswordRequest = useCallback(async (email) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await requestPasswordReset(email);
-      if (result.success) {
-        return { success: true, resetCode: result.resetCode }; // Trả về code để test
-      } else {
+      
+      const { callWithFallback, callCSharpAPI } = await import('../services/dualApiService');
+      const { requestPasswordReset } = await import('../services/simpleAuthService');
+      
+      const result = await callWithFallback(
+        // C# API call
+        async (signal) => {
+          const response = await callCSharpAPI(
+            '/api/auth/send-verification-code',
+            {
+              method: 'POST',
+              body: JSON.stringify({ email })
+            },
+            signal
+          );
+          
+          if (!response.success) {
+            throw new Error(response.message || 'Failed to send verification code');
+          }
+          
+          return { success: true, resetCode: response.resetCode };
+        },
+        // Supabase fallback
+        async () => {
+          return await requestPasswordReset(email);
+        },
+        5000 // 5 giây timeout
+      );
+      
+      if (!result.success) {
         setError(result.error);
-        return { success: false, error: result.error };
       }
+      
+      return result;
     } catch (err) {
       const errorMsg = err.message || 'An error occurred during password reset';
       setError(errorMsg);
@@ -220,22 +248,50 @@ export const SimpleAuthContext = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setError, setLoading]);
 
   /**
    * Reset Password với code
+   * Ưu tiên dùng C# API, fallback sang Supabase nếu C# API không khả dụng
    */
   const resetPasswordWithCode = useCallback(async (email, code, newPassword) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await resetPassword(email, code, newPassword);
-      if (result.success) {
+      
+      const { callWithFallback, callCSharpAPI } = await import('../services/dualApiService');
+      const { resetPassword } = await import('../services/simpleAuthService');
+      
+      const result = await callWithFallback(
+        // C# API call
+        async (signal) => {
+          const response = await callCSharpAPI(
+            '/api/auth/verify-code-reset-password',
+            {
+              method: 'POST',
+              body: JSON.stringify({ email, code, newPassword })
+            },
+            signal
+          );
+          
+          if (!response.success) {
+            throw new Error(response.message || 'Failed to reset password');
+          }
+          
         return { success: true };
-      } else {
+        },
+        // Supabase fallback
+        async () => {
+          return await resetPassword(email, code, newPassword);
+        },
+        5000 // 5 giây timeout
+      );
+      
+      if (!result.success) {
         setError(result.error);
-        return { success: false, error: result.error };
       }
+      
+      return result;
     } catch (err) {
       const errorMsg = err.message || 'An error occurred during password reset';
       setError(errorMsg);
@@ -243,7 +299,7 @@ export const SimpleAuthContext = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setError, setLoading]);
 
   /**
    * Update Password (for logged-in user)
@@ -305,62 +361,130 @@ export const SimpleAuthContext = ({ children }) => {
   /**
    * OAuth Login với C# API và Fallback Supabase
    * Tự động fallback nếu C# API không khả dụng
+   * Clear Google OAuth cache để tránh cache cũ
    */
   const loginWithOAuth = useCallback(async (provider) => {
     try {
       setError('');
       setLoading(true);
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       
-      // Bước 1: Thử gọi C# API để lấy OAuth URL (với timeout)
+      // Clear OAuth cache và Supabase Auth session để tránh dùng account cũ
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 giây timeout
+        // Clear Supabase Auth session trước (QUAN TRỌNG)
+        const { supabase } = await import('../utils/supabaseClient');
+        await supabase.auth.signOut();
+        console.log('🧹 Cleared Supabase Auth session');
         
-        const urlsResponse = await fetch(`${API_URL}/api/auth/oauth/urls`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal
+        // Clear localStorage cache
+        const cacheKeys = Object.keys(localStorage).filter(key => 
+          key.includes('google') || 
+          key.includes('oauth') || 
+          key.includes('gid') ||
+          key.includes('supabase') ||
+          key.includes('sb-')
+        );
+        cacheKeys.forEach(key => localStorage.removeItem(key));
+        console.log(`🧹 Cleared ${cacheKeys.length} localStorage keys`);
+        
+        // Clear sessionStorage
+        sessionStorage.clear();
+        console.log('🧹 Cleared sessionStorage');
+        
+        // Clear cookies liên quan đến OAuth (nếu có)
+        document.cookie.split(";").forEach(c => {
+          const cookieName = c.trim().split("=")[0];
+          if (cookieName.includes('google') || cookieName.includes('oauth') || cookieName.includes('gid')) {
+            document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+          }
         });
         
-        clearTimeout(timeoutId);
-        
-        if (urlsResponse.ok) {
-          const urls = await urlsResponse.json();
-          
-          // Redirect đến OAuth provider qua C# API
-          if (provider === 'google' && urls.googleAuthUrl) {
-            window.location.href = urls.googleAuthUrl;
-            return { success: true, redirecting: true, method: 'csharp' };
-          } else if (provider === 'facebook' && urls.facebookAuthUrl) {
-            window.location.href = urls.facebookAuthUrl;
-            return { success: true, redirecting: true, method: 'csharp' };
-          }
-        }
-      } catch (apiError) {
-        // C# API không khả dụng, fallback sang Supabase
-        if (apiError.name === 'AbortError') {
-          console.warn('C# API timeout, falling back to Supabase OAuth');
-        } else {
-          console.warn('C# API not available, falling back to Supabase OAuth:', apiError);
-        }
+        console.log('✅ OAuth cache cleared completely');
+      } catch (cacheError) {
+        console.warn('Failed to clear OAuth cache:', cacheError);
       }
       
-      // Bước 2: Fallback - Dùng Supabase OAuth nếu C# API không khả dụng
+      const { callWithFallback, callCSharpAPI } = await import('../services/dualApiService');
+      
+      // Bước 1: Thử gọi C# API để lấy OAuth URL (với timeout)
+      const result = await callWithFallback(
+        // C# API call
+        async (signal) => {
+          const urls = await callCSharpAPI('/api/auth/oauth/urls', { method: 'GET' }, signal);
+          
+          // Redirect đến OAuth provider qua C# API
+          // Thêm prompt=select_account để user chọn account mới mỗi lần
+          if (provider === 'google' && urls.googleAuthUrl) {
+            // Thêm prompt=select_account để tránh cache account cũ
+            const googleUrl = urls.googleAuthUrl.includes('prompt=')
+              ? urls.googleAuthUrl.replace(/prompt=[^&]*/, 'prompt=select_account')
+              : urls.googleAuthUrl + (urls.googleAuthUrl.includes('?') ? '&' : '?') + 'prompt=select_account';
+            
+            console.log('🔐 Redirecting to Google OAuth via C# API');
+            window.location.href = googleUrl;
+            return { success: true, redirecting: true };
+          } else if (provider === 'facebook' && urls.facebookAuthUrl) {
+            // Facebook: thêm auth_type=reauthenticate để tránh cache
+            const facebookUrl = urls.facebookAuthUrl.includes('auth_type=')
+              ? urls.facebookAuthUrl.replace(/auth_type=[^&]*/, 'auth_type=reauthenticate')
+              : urls.facebookAuthUrl + (urls.facebookAuthUrl.includes('?') ? '&' : '?') + 'auth_type=reauthenticate';
+            
+            console.log('🔐 Redirecting to Facebook OAuth via C# API');
+            window.location.href = facebookUrl;
+            return { success: true, redirecting: true };
+          }
+          
+          throw new Error('OAuth URL not found in C# API response');
+        },
+        // Supabase fallback
+        async () => {
       const { supabase } = await import('../utils/supabaseClient');
+          
+          // Đảm bảo đã clear session (đã clear ở trên, nhưng clear lại để chắc chắn)
+          await supabase.auth.signOut();
+          
+          // Clear thêm một lần nữa để chắc chắn
+          try {
+            const allKeys = Object.keys(localStorage);
+            allKeys.forEach(key => {
+              if (key.startsWith('sb-') || key.includes('supabase')) {
+                localStorage.removeItem(key);
+              }
+            });
+          } catch (e) {
+            console.warn('Error clearing Supabase localStorage:', e);
+          }
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
+              redirectTo: `${window.location.origin}/auth/callback`,
+              // QUAN TRỌNG: Thêm query params để force user chọn account mới
+              queryParams: provider === 'google' 
+                ? { 
+                    prompt: 'select_account',  // Force select account
+                    access_type: 'offline'     // Get refresh token
+                  } 
+                : provider === 'facebook'
+                ? { 
+                    auth_type: 'reauthenticate',  // Force re-authenticate
+                    display: 'popup'              // Use popup để tránh cache
+                  }
+                : {}
+            },
+            // Skip browser redirect để tránh cache
+            skipBrowserRedirect: false
       });
 
       if (error) {
         throw new Error(`Supabase OAuth error: ${error.message}`);
       }
       
-      return { success: true, data, method: 'supabase' };
+          return { success: true, data };
+        },
+        3000 // 3 giây timeout
+      );
+      
+      return result;
     } catch (err) {
       console.error('OAuth login error:', err);
       setError(err.message);

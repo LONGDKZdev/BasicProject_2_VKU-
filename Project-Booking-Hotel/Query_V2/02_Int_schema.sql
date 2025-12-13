@@ -13,7 +13,10 @@ drop type if exists public.discount_type cascade;
 
 -- ====== ENUMS ======
 create type room_status as enum ('available', 'occupied', 'maintenance', 'cleaning');
-create type booking_status as enum ('pending', 'pending_payment', 'approved', 'rejected', 'confirmed', 'checked_in', 'checked_out', 'modified', 'completed', 'cancelled');
+-- Simplified booking status enum (removed: pending, approved, modified, rejected)
+-- Workflow: pending_payment → confirmed → checked_in → checked_out → completed
+-- Can be cancelled at any stage
+create type booking_status as enum ('pending_payment', 'confirmed', 'checked_in', 'checked_out', 'completed', 'cancelled');
 create type price_rule_type as enum ('weekend', 'holiday', 'seasonal', 'season');
 create type discount_type as enum ('percent', 'fixed');
 
@@ -344,3 +347,176 @@ returns setof public.rooms language sql stable as $$
     and rt.base_capacity >= p_guests
     and public.is_room_available(r.id, p_start, p_end);
 $$;
+
+-- ====== 13. ROOM STATUS HISTORY (Track operational status shifts) ======
+create table if not exists public.room_status_history (
+  id uuid primary key default gen_random_uuid(),
+  room_id uuid not null references public.rooms(id) on delete cascade,
+  status room_status not null,
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  note text,
+  actor uuid references public.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_room_status_history_room_start on public.room_status_history(room_id, started_at desc);
+
+-- Current room status snapshot by date
+create or replace view public.room_status_board as
+select
+  r.id as room_id,
+  r.room_no,
+  r.room_type_id,
+  r.status as current_status,
+  coalesce((
+    select rs.status
+    from public.room_status_history rs
+    where rs.room_id = r.id
+    order by rs.started_at desc
+    limit 1
+  ), r.status) as last_recorded_status,
+  (
+    select jsonb_build_object(
+      'booking_id', b.id,
+      'status', b.status,
+      'check_in', b.check_in,
+      'check_out', b.check_out,
+      'guest_name', coalesce(b.user_name, b.guest_name),
+      'confirmation_code', b.confirmation_code
+    )
+    from public.bookings b
+    join public.booking_items bi on bi.booking_id = b.id
+    where bi.room_id = r.id
+      and b.status in ('confirmed','checked_in','pending_payment')
+      and daterange(b.check_in, b.check_out, '[)') && daterange(current_date, current_date + 30, '[)')
+    order by b.check_in asc
+    limit 1
+  ) as next_booking
+from public.rooms r;
+
+-- ====== 14. HOUSEKEEPING TASKS ======
+create table if not exists public.housekeeping_tasks (
+  id uuid primary key default gen_random_uuid(),
+  room_id uuid not null references public.rooms(id) on delete cascade,
+  task_type text not null, -- cleaning, maintenance, minibar, inspection
+  status text not null default 'pending' check (status in ('pending','in_progress','done','cancelled')),
+  priority smallint not null default 3 check (priority between 1 and 5),
+  assignee uuid references public.users(id) on delete set null,
+  due_at timestamptz,
+  completed_at timestamptz,
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create trigger set_housekeeping_tasks_updated_at before update on public.housekeeping_tasks for each row execute procedure public.trigger_set_timestamp();
+create index if not exists idx_housekeeping_tasks_room on public.housekeeping_tasks(room_id, status);
+
+-- ====== 15. RESTAURANT DATA (menu + tables + slots) ======
+create table if not exists public.restaurant_menu_items (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  name text not null,
+  description text,
+  category text not null,
+  price numeric(12,2) not null,
+  image_url text,
+  is_active boolean not null default true,
+  display_order int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create trigger set_restaurant_menu_items_updated_at before update on public.restaurant_menu_items for each row execute procedure public.trigger_set_timestamp();
+
+create table if not exists public.restaurant_tables (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  capacity int not null check (capacity > 0),
+  location text,
+  status text not null default 'available' check (status in ('available','maintenance','inactive')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create trigger set_restaurant_tables_updated_at before update on public.restaurant_tables for each row execute procedure public.trigger_set_timestamp();
+
+create table if not exists public.restaurant_slots (
+  id uuid primary key default gen_random_uuid(),
+  table_id uuid not null references public.restaurant_tables(id) on delete cascade,
+  reservation_at timestamptz not null,
+  capacity_limit int not null,
+  capacity_used int not null default 0,
+  status text not null default 'available' check (status in ('available','held','booked')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint uniq_restaurant_slot unique (table_id, reservation_at)
+);
+create trigger set_restaurant_slots_updated_at before update on public.restaurant_slots for each row execute procedure public.trigger_set_timestamp();
+create index if not exists idx_restaurant_slots_table_time on public.restaurant_slots(table_id, reservation_at);
+
+-- Availability helper
+create or replace function public.is_restaurant_slot_available(p_table_id uuid, p_time timestamptz, p_guests int)
+returns boolean language sql stable as $$
+  select exists (
+    select 1 from public.restaurant_slots rs
+    where rs.table_id = p_table_id
+      and rs.reservation_at = p_time
+      and rs.status <> 'booked'
+      and (rs.capacity_limit - rs.capacity_used) >= p_guests
+  );
+$$;
+
+-- ====== 16. SPA DATA (services + slots) ======
+create table if not exists public.spa_services (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  name text not null,
+  category text not null,
+  duration_minutes int not null,
+  price numeric(12,2) not null,
+  description text,
+  image_url text,
+  is_active boolean not null default true,
+  display_order int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create trigger set_spa_services_updated_at before update on public.spa_services for each row execute procedure public.trigger_set_timestamp();
+
+create table if not exists public.spa_slots (
+  id uuid primary key default gen_random_uuid(),
+  service_id uuid not null references public.spa_services(id) on delete cascade,
+  therapist text,
+  appointment_at timestamptz not null,
+  capacity int not null default 1 check (capacity > 0),
+  status text not null default 'available' check (status in ('available','held','booked','blocked')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint uniq_spa_slot unique (service_id, therapist, appointment_at)
+);
+create trigger set_spa_slots_updated_at before update on public.spa_slots for each row execute procedure public.trigger_set_timestamp();
+create index if not exists idx_spa_slots_service_time on public.spa_slots(service_id, appointment_at);
+
+create or replace function public.is_spa_slot_available(p_service_id uuid, p_therapist text, p_time timestamptz)
+returns boolean language sql stable as $$
+  select exists (
+    select 1 from public.spa_slots ss
+    where ss.service_id = p_service_id
+      and ss.appointment_at = p_time
+      and (p_therapist is null or ss.therapist = p_therapist)
+      and ss.status = 'available'
+  );
+$$;
+
+-- ====== 17. CONTACT MESSAGES ======
+create table if not exists public.contact_messages (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  email text not null,
+  phone text,
+  subject text not null,
+  message text not null,
+  status text not null default 'new' check (status in ('new','read','replied','archived')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create trigger set_contact_messages_updated_at before update on public.contact_messages for each row execute procedure public.trigger_set_timestamp();
+create index if not exists idx_contact_messages_status on public.contact_messages(status, created_at);

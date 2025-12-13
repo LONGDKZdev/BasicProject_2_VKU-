@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { LogoDark } from '../assets';
+import { getLogoUrl } from '../utils/supabaseStorageUrls';
 import { FaEnvelope, FaSpinner, FaArrowLeft, FaCheckCircle } from 'react-icons/fa';
 import Toast from '../components/Toast';
 import { useAuth } from '../context/SimpleAuthContext';
@@ -93,7 +93,7 @@ const ForgotPassword = () => {
           {/* Header */}
           <div className="bg-gradient-to-r from-accent to-accent-hover p-8 text-center">
             <div className="flex justify-center mb-4">
-              <LogoDark className="w-[180px] brightness-0 invert" />
+          <img src={getLogoUrl('dark')} alt="logo" className="w-[180px] brightness-0 invert" />
             </div>
             <h1 className="text-2xl font-primary text-white mb-2">Forgot Password?</h1>
             <p className="text-white/90 text-sm">We'll send you a password reset link</p>

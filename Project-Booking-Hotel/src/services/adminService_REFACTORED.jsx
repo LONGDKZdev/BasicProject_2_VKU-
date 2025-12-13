@@ -45,6 +45,8 @@ export const fetchAllRoomBookingsForAdmin = async () => {
       guestEmail: booking.profiles?.email,
       guestPhone: booking.profiles?.phone,
       totalPrice: parseFloat(booking.total_amount || 0),
+      checkIn: booking.check_in, // Map check_in to checkIn
+      checkOut: booking.check_out, // Map check_out to checkOut
     }));
   } catch (err) {
     console.error('❌ Error fetching room bookings for admin:', err);
@@ -68,6 +70,8 @@ export const fetchAllRestaurantBookingsForAdmin = async () => {
     
     if (error) throw error;
     
+    console.log(`[Admin] Fetched ${data?.length || 0} restaurant bookings from DB`);
+    
     return (data || []).map(booking => ({
       ...booking,
       type: 'restaurant',
@@ -81,6 +85,12 @@ export const fetchAllRestaurantBookingsForAdmin = async () => {
     }));
   } catch (err) {
     console.error('❌ Error fetching restaurant bookings for admin:', err);
+    console.error('Error details:', {
+      message: err.message,
+      details: err.details,
+      hint: err.hint,
+      code: err.code
+    });
     return [];
   }
 };
@@ -101,6 +111,8 @@ export const fetchAllSpaBookingsForAdmin = async () => {
     
     if (error) throw error;
     
+    console.log(`[Admin] Fetched ${data?.length || 0} spa bookings from DB`);
+    
     return (data || []).map(booking => ({
       ...booking,
       type: 'spa',
@@ -114,6 +126,12 @@ export const fetchAllSpaBookingsForAdmin = async () => {
     }));
   } catch (err) {
     console.error('❌ Error fetching spa bookings for admin:', err);
+    console.error('Error details:', {
+      message: err.message,
+      details: err.details,
+      hint: err.hint,
+      code: err.code
+    });
     return [];
   }
 };
@@ -178,7 +196,38 @@ export const updateBookingStatus = async (bookingId, bookingType, status, extraD
     if (error) throw error;
 
     console.log(`✅ Booking ${bookingId} (${bookingType}) updated to status: ${status}`);
-    return data?.[0] || null;
+    const updated = data?.[0] || null;
+
+    // Side-effect: update room status/history when room booking
+    if (bookingType === 'room' && updated?.room_id) {
+      try {
+        if (status === 'checked_in' || status === 'confirmed') {
+          await supabase
+            .from('rooms')
+            .update({ status: 'occupied', updated_at: new Date().toISOString() })
+            .eq('id', updated.room_id);
+          await supabase.from('room_status_history').insert([{
+            room_id: updated.room_id,
+            status: 'occupied',
+            note: `Admin set booking ${bookingId} to ${status}`,
+          }]);
+        } else if (status === 'checked_out' || status === 'cancelled') {
+          await supabase
+            .from('rooms')
+            .update({ status: 'available', updated_at: new Date().toISOString() })
+            .eq('id', updated.room_id);
+          await supabase.from('room_status_history').insert([{
+            room_id: updated.room_id,
+            status: 'available',
+            note: `Admin set booking ${bookingId} to ${status}`,
+          }]);
+        }
+      } catch (sideErr) {
+        console.warn('Room status history side-effect failed:', sideErr);
+      }
+    }
+
+    return updated;
   } catch (err) {
     console.error(`❌ Error updating booking status:`, err);
     return null;
@@ -214,6 +263,23 @@ export const deleteBooking = async (bookingId, bookingType) => {
   } catch (err) {
     console.error(`❌ Error deleting booking:`, err);
     return false;
+  }
+};
+
+// ============================================================================
+// ROOM STATUS BOARD (view)
+// ============================================================================
+export const fetchRoomStatusBoardForAdmin = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('room_status_board')
+      .select('*')
+      .order('room_no', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('❌ Error fetching room status board:', err);
+    return [];
   }
 };
 
@@ -446,7 +512,8 @@ export const getAdminDashboardStats = async () => {
  */
 export const getBookingStatusBreakdown = async () => {
   try {
-    const statuses = ['pending', 'pending_payment', 'approved', 'confirmed', 'checked_in', 'checked_out', 'completed', 'cancelled', 'modified', 'rejected'];
+    // Simplified status list (removed: pending, approved, modified, rejected)
+    const statuses = ['pending_payment', 'confirmed', 'checked_in', 'checked_out', 'completed', 'cancelled'];
 
     const breakdowns = {};
 
