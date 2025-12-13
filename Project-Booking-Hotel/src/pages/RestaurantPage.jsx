@@ -4,6 +4,11 @@ import QRPayment from "../components/QRPayment";
 import Invoice from "../components/Invoice";
 import { useBookingContext } from "../context/BookingContext";
 import { useAuth } from "../context/SimpleAuthContext";
+import {
+  fetchRestaurantMenuItems,
+  fetchRestaurantSlotsByDateTime,
+  updateRestaurantSlotUsage,
+} from "../services/bookingService";
 // ⚠️ Local images removed - now use Supabase URLs
 
 const STORAGE_URL = "https://sxteddkozzqniebfstag.supabase.co/storage/v1/object/public/hotel-rooms/img/rooms";
@@ -21,13 +26,40 @@ import {
 const PLACEHOLDER_IMG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect fill='%23ddd' width='300' height='200'/%3E%3Ctext x='50%' y='50%' font-size='14' fill='%23999' text-anchor='middle' dy='.3em'%3EMenu Image%3C/text%3E%3C/svg%3E";
 
 // Helper function to get image for menu items (using Supabase Storage URLs)
-const getMenuItemImage = (id) => {
+const getMenuItemImage = (id, imageUrl = null, displayOrder = null) => {
+  // If image_url from DB is valid and NOT a placeholder, use it
+  if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('via.placeholder.com')) {
+    return imageUrl;
+  }
+  
+  // Fallback: Use display_order or hash id to cycle through images 1-8
+  // Images are named 1-lg.png through 8-lg.png for large format
   if (!id) return PLACEHOLDER_IMG_MENU;
   
-  // Cycle through images 1-8 (large version)
-  // Assumes restaurant images match the room images for diversity
-  const imgIndex = (id % 8) === 0 ? 8 : (id % 8);
-  return `${STORAGE_URL}/${imgIndex}-lg.png` || PLACEHOLDER_IMG_MENU;
+  // If display_order is available, use it directly
+  let imgIndex = 1;
+  if (displayOrder && typeof displayOrder === 'number') {
+    imgIndex = ((displayOrder - 1) % 8) + 1;
+  } else {
+    // Hash UUID/string id to get consistent number 1-8
+    let hash = 0;
+    const idStr = String(id);
+    for (let i = 0; i < idStr.length; i++) {
+      hash = ((hash << 5) - hash) + idStr.charCodeAt(i);
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    imgIndex = (Math.abs(hash) % 8) + 1;
+  }
+  
+  const finalUrl = `${STORAGE_URL}/${imgIndex}-lg.png`;
+  // Test if image exists (async, non-blocking)
+  if (typeof window !== 'undefined') {
+    const img = new Image();
+    img.onerror = () => console.warn(`[Restaurant] Image not found: ${finalUrl}`);
+    img.onload = () => console.log(`[Restaurant] Image loaded: ${finalUrl}`);
+    img.src = finalUrl;
+  }
+  return finalUrl;
 };
 
 
@@ -328,6 +360,8 @@ const RestaurantPage = () => {
   const { user } = useAuth();
   const { createRestaurantBooking, confirmRestaurantBooking } =
     useBookingContext();
+  const [categories, setCategories] = useState(menuCategories);
+  const [menuData, setMenuData] = useState(menuItems);
   const [activeCategory, setActiveCategory] = useState("appetizers");
   const [toast, setToast] = useState(null);
   const [showQRPayment, setShowQRPayment] = useState(false);
@@ -355,7 +389,51 @@ const RestaurantPage = () => {
     }
   }, [user]);
 
-  const handleReservationSubmit = (e) => {
+  // Load menu items from Supabase (fallback to static if fails)
+  useEffect(() => {
+    const loadMenu = async () => {
+      try {
+        const data = await fetchRestaurantMenuItems();
+        if (!data || data.length === 0) return;
+
+        const catSet = Array.from(
+          new Set(
+            data
+              .map((i) => i.category || "others")
+              .map((c) => c.toLowerCase())
+          )
+        );
+        const mappedCategories = catSet.map((c) => ({
+          id: c,
+          name: c.charAt(0).toUpperCase() + c.slice(1),
+          icon: c.includes("beverage") ? FaWineGlassAlt : FaUtensils,
+        }));
+        const grouped = data.reduce((acc, item) => {
+          const key = (item.category || "others").toLowerCase();
+          acc[key] = acc[key] || [];
+          acc[key].push({
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            price: Number(item.price) || 0,
+            popular: item.popular || false,
+            image: getMenuItemImage(item.id, item.image_url, item.display_order),
+            items: item.items || [],
+          });
+          return acc;
+        }, {});
+
+        setCategories(mappedCategories);
+        setMenuData(grouped);
+        setActiveCategory(mappedCategories[0]?.id || "appetizers");
+      } catch (err) {
+        console.warn("Fallback to static menu, fetch error:", err);
+      }
+    };
+    loadMenu();
+  }, []);
+
+  const handleReservationSubmit = async (e) => {
     e.preventDefault();
     if (
       !reservationForm.name ||
@@ -370,15 +448,43 @@ const RestaurantPage = () => {
       return;
     }
 
-    // Calculate price (demo: $50 per guest)
-    const price = parseInt(reservationForm.guests) * 50;
+    const guests = parseInt(reservationForm.guests, 10) || 1;
+    const reservationAt = `${reservationForm.date}T${reservationForm.time}`;
+
+    // Check slot availability from Supabase
+    const slots = await fetchRestaurantSlotsByDateTime(reservationAt);
+    const availableSlot = slots
+      .filter(
+        (slot) =>
+          slot.status !== "booked" &&
+          (slot.capacity_limit - slot.capacity_used) >= guests
+      )
+      .sort(
+        (a, b) =>
+          (a.restaurant_tables?.capacity || a.capacity_limit) -
+          (b.restaurant_tables?.capacity || b.capacity_limit)
+      )[0];
+
+    if (!availableSlot) {
+      setToast({
+        type: "error",
+        message: "No available table for this time/guest count.",
+      });
+      return;
+    }
+
+    // Update slot usage (best-effort)
+    await updateRestaurantSlotUsage(availableSlot.id, guests);
+
+    // Price demo: $50/guest if no menu selection
+    const price = guests * 50;
 
     const result = createRestaurantBooking({
       name: reservationForm.name,
       email: reservationForm.email,
       phone: reservationForm.phone,
-      date: `${reservationForm.date}T${reservationForm.time}`,
-      guests: parseInt(reservationForm.guests),
+      date: reservationAt,
+      guests,
       specialRequests: reservationForm.specialRequests,
       userId: user?.id,
       userName: reservationForm.name,
@@ -476,7 +582,7 @@ const RestaurantPage = () => {
 
         {/* Category Tabs */}
         <div className="flex flex-wrap justify-center gap-4 mb-12">
-          {menuCategories.map((category) => {
+          {categories.map((category) => {
             const Icon = category.icon;
             return (
               <button
@@ -497,7 +603,7 @@ const RestaurantPage = () => {
 
         {/* Menu Items Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {menuItems[activeCategory].map((item) => (
+          {(menuData[activeCategory] || []).map((item) => (
             <div
               key={item.id}
               className="bg-white shadow-sm border border-[#eadfcf] hover:shadow-lg transition-shadow overflow-hidden"
@@ -507,6 +613,10 @@ const RestaurantPage = () => {
                   src={item.image}
                   alt={item.name}
                   className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
+                  onError={(e) => {
+                    console.error(`[Restaurant] Failed to load image: ${item.image}`);
+                    e.target.src = PLACEHOLDER_IMG_MENU;
+                  }}
                 />
                 {item.popular && (
                   <span className="absolute top-3 right-3 flex items-center gap-1 bg-accent text-white px-3 py-1 rounded-full text-xs">

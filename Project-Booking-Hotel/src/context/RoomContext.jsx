@@ -12,6 +12,8 @@ import {
   fetchPriceRules,
   fetchPromotions,
   fetchHolidayCalendar,
+  updateRoomStatus,
+  addRoomStatusHistory,
 } from "../services/roomService";
 import {
   fetchUserBookings,
@@ -981,6 +983,18 @@ export const RoomContext = ({ children }) => {
             payment_method: paymentData.paymentMethod,
             payment_code: paymentData.paymentCode,
             paid_at: confirmedBooking.paidAt,
+          }).then((updated) => {
+            // Move room to occupied & log history (best effort)
+            const roomId = updated?.room_id || booking.roomId;
+            if (roomId) {
+              updateRoomStatus(roomId, "occupied");
+              addRoomStatusHistory({
+                roomId,
+                status: "occupied",
+                note: `Booking ${booking.confirmationCode} confirmed`,
+                actor: user?.id || null,
+              });
+            }
           }).catch((err) => {
             console.error('❌ Failed to update Supabase:', err);
           });
@@ -999,6 +1013,78 @@ export const RoomContext = ({ children }) => {
       })
     );
     return confirmedBooking;
+  };
+
+  const checkInBooking = (bookingId) => {
+    let updatedBooking = null;
+    saveBookings((prev) =>
+      prev.map((booking) => {
+        if (booking.id !== bookingId) return booking;
+        updatedBooking = {
+          ...booking,
+          status: "checked_in",
+          checkedInAt: new Date().toISOString(),
+        };
+
+        if (dbConnected && booking.id !== "pending") {
+          updateBookingStatus(booking.id, "checked_in", {
+            checked_in_at: updatedBooking.checkedInAt,
+          })
+            .then((updated) => {
+              const roomId = updated?.room_id || booking.roomId;
+              if (roomId) {
+                updateRoomStatus(roomId, "occupied");
+                addRoomStatusHistory({
+                  roomId,
+                  status: "occupied",
+                  note: `Booking ${booking.confirmationCode} checked in`,
+                  actor: user?.id || null,
+                });
+              }
+            })
+            .catch((err) => console.error("❌ Failed to update Supabase:", err));
+        }
+
+        return updatedBooking;
+      })
+    );
+    return updatedBooking;
+  };
+
+  const checkOutBooking = (bookingId) => {
+    let updatedBooking = null;
+    saveBookings((prev) =>
+      prev.map((booking) => {
+        if (booking.id !== bookingId) return booking;
+        updatedBooking = {
+          ...booking,
+          status: "checked_out",
+          checkedOutAt: new Date().toISOString(),
+        };
+
+        if (dbConnected && booking.id !== "pending") {
+          updateBookingStatus(booking.id, "checked_out", {
+            checked_out_at: updatedBooking.checkedOutAt,
+          })
+            .then((updated) => {
+              const roomId = updated?.room_id || booking.roomId;
+              if (roomId) {
+                updateRoomStatus(roomId, "available");
+                addRoomStatusHistory({
+                  roomId,
+                  status: "available",
+                  note: `Booking ${booking.confirmationCode} checked out`,
+                  actor: user?.id || null,
+                });
+              }
+            })
+            .catch((err) => console.error("❌ Failed to update Supabase:", err));
+        }
+
+        return updatedBooking;
+      })
+    );
+    return updatedBooking;
   };
 
   const cancelBooking = (bookingId, reason = "Cancelled by guest") => {
@@ -1024,6 +1110,16 @@ export const RoomContext = ({ children }) => {
           }).catch((err) => {
             console.error('❌ Failed to update Supabase:', err);
           });
+          const roomId = booking.roomId;
+          if (roomId) {
+            updateRoomStatus(roomId, "available");
+            addRoomStatusHistory({
+              roomId,
+              status: "available",
+              note: `Booking ${booking.confirmationCode} cancelled`,
+              actor: user?.id || null,
+            });
+          }
         }
 
         return cancelledBooking;
@@ -1074,11 +1170,85 @@ export const RoomContext = ({ children }) => {
             },
           ],
         };
+
+        // ✅ SYNC TO SUPABASE
+        if (dbConnected && booking.id !== "pending") {
+          updateBookingStatus(booking.id, "modified", {
+            check_in: normalizedCheckIn,
+            check_out: normalizedCheckOut,
+          }).then((updated) => {
+            const roomId = updated?.room_id || booking.roomId;
+            if (roomId) {
+              addRoomStatusHistory({
+                roomId,
+                status: "occupied",
+                note: `Booking ${booking.confirmationCode} modified`,
+                actor: user?.id || null,
+              });
+            }
+          }).catch((err) => {
+            console.error('❌ Failed to update Supabase:', err);
+          });
+        }
+
         return updatedBooking;
       })
     );
     return updatedBooking;
   };
+
+  /**
+   * Auto-cancel pending_payment bookings older than 15 minutes (DB + local)
+   */
+  useEffect(() => {
+    const expiryMinutes = 15;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      saveBookings((prev) =>
+        prev.map((booking) => {
+          if (booking.status !== "pending_payment") return booking;
+          const created = booking.createdAt
+            ? new Date(booking.createdAt).getTime()
+            : now;
+          if (now - created < expiryMinutes * 60 * 1000) return booking;
+
+          // Mark as cancelled locally
+          const cancelled = {
+            ...booking,
+            status: "cancelled",
+            cancelReason: "Payment timeout",
+            cancelledAt: new Date().toISOString(),
+          };
+
+          // Sync to Supabase best-effort
+          if (dbConnected && booking.id && booking.id !== "pending") {
+            updateBookingStatus(booking.id, "cancelled", {
+              note: "Auto-cancelled: payment timeout",
+            })
+              .then((updated) => {
+                const roomId = updated?.room_id || booking.roomId;
+                if (roomId) {
+                  updateRoomStatus(roomId, "available");
+                  addRoomStatusHistory({
+                    roomId,
+                    status: "available",
+                    note: `Booking ${booking.confirmationCode} expired (pending_payment timeout)`,
+                    actor: null,
+                  });
+                }
+              })
+              .catch((err) =>
+                console.error("❌ Failed to cancel pending payment:", err)
+              );
+          }
+
+          return cancelled;
+        })
+      );
+    }, 60 * 1000); // check every minute
+
+    return () => clearInterval(interval);
+  }, [dbConnected]);
 
   const hasUserBookedRoom = async (userId, roomId) => {
     if (!userId || !roomId) return false;
@@ -1152,6 +1322,12 @@ export const RoomContext = ({ children }) => {
     allRooms,
     rooms,
     loading,
+    priceRules,
+    promotions,
+    holidayCalendar,
+    fetchRoomStatusBoard,
+    updateRoomStatus,
+    addRoomStatusHistory,
     dbConnected, // Indicates if Supabase is available
     adults,
     setAdults,
@@ -1183,6 +1359,8 @@ export const RoomContext = ({ children }) => {
     bookings,
     getUserBookings,
     confirmBookingPayment,
+    checkInBooking,
+    checkOutBooking,
     cancelBooking,
     modifyBookingDates,
     hasUserBookedRoom,
