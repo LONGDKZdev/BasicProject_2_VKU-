@@ -8,13 +8,13 @@
 // ============================================
 
 const EXTENDED_QUICK_ACTIONS = [
-  { label: "🔍 Tìm phòng", type: "filter", icon: "🔍" },
-  { label: "📋 Đặt ngay", type: "book", icon: "📋" },
-  { label: "✨ Tiện nghi", type: "amenities", icon: "✨" },
-  { label: "🎉 Khuyến mại", type: "promo", icon: "🎉" },
-  { label: "📞 Liên hệ", type: "contact", icon: "📞" },
-  // Thêm action mới
-  { label: "💳 Thanh toán", type: "payment", icon: "💳" },
+  { label: "🔍 Find Room", type: "filter", icon: "🔍" },
+  { label: "📋 Book Now", type: "book", icon: "📋" },
+  { label: "✨ Amenities", type: "amenities", icon: "✨" },
+  { label: "🎉 Promotions", type: "promo", icon: "🎉" },
+  { label: "📞 Contact", type: "contact", icon: "📞" },
+  // Add new action
+  { label: "💳 Payment", type: "payment", icon: "💳" },
   { label: "⭐ Reviews", type: "reviews", icon: "⭐" },
   { label: "🎁 Loyalty", type: "loyalty", icon: "🎁" },
 ];
@@ -25,23 +25,23 @@ const EXTENDED_QUICK_ACTIONS = [
 
 const CUSTOM_AI_RESPONSES = {
   greetings: [
-    "Xin chào! 👋 Tôi là trợ lý của khách sạn 5 sao. Tôi có thể giúp gì cho bạn?",
-    "Chào mừng đến khách sạn của chúng tôi! 🏨 Bạn có nhu cầu gì hôm nay?",
-    "Hi! 😊 Tôi ở đây để làm cho ngày của bạn trở nên tuyệt vời!",
+    "Hello! 👋 I'm the assistant of a 5-star hotel. How can I help you?",
+    "Welcome to our hotel! 🏨 What can I do for you today?",
+    "Hi! 😊 I'm here to make your day great!",
   ],
   payment: [
-    "💳 Chúng tôi chấp nhận: Thẻ Visa, Mastercard, Apple Pay, Google Pay",
-    "💰 Thanh toán an toàn 100% với SSL encryption",
-    "✅ Bạn có thể thanh toán online hoặc tại quầy",
+    "💳 We accept: Visa, Mastercard, Apple Pay, Google Pay",
+    "💰 100% secure payment with SSL encryption",
+    "✅ You can pay online or at the front desk",
   ],
   loyalty: [
-    "⭐ Chương trình VIP: Mỗi đặt phòng = 10 điểm\n100 điểm = Discount 20%",
-    "🎁 Thành viên được:\n• Nâng cấp phòng miễn phí\n• Breakfast voucher\n• Priority support",
+    "⭐ VIP Program: Each booking = 10 points\n100 points = 20% Discount",
+    "🎁 Members get:\n• Free room upgrade\n• Breakfast voucher\n• Priority support",
   ],
   reviews: [
-    "⭐⭐⭐⭐⭐ 4.8/5 sao từ 2000+ reviews",
-    '"Phòng tuyệt vời, nhân viên thân thiện!" - Maria',
-    '"Tôi sẽ quay lại!" - John',
+    "⭐⭐⭐⭐⭐ 4.8/5 stars from 2000+ reviews",
+    '"Great room, friendly staff!" - Maria',
+    '"I will come back!" - John',
   ],
 };
 
@@ -80,16 +80,16 @@ export const ROOM_AMENITIES = {
 };
 
 export const HOTEL_SERVICES = {
-  pool: "🏊 Bể bơi Olympic (open 6AM-10PM)",
-  gym: "🏋️ Phòng tập hiện đại (24/7)",
-  spa: "🧖 Spa & massage (10AM-11PM)",
-  restaurant: "🍽️ Nhà hàng 5 sao (6AM-12AM)",
-  bar: "🍸 Bar & lounge (5PM-2AM)",
-  parking: "🅿️ Bãi đỗ xe miễn phí",
-  wifi: "📶 WiFi miễn phí (300 Mbps)",
-  transfer: "🚗 Dịch vụ đ接 sân bay",
+  pool: "🏊 Olympic Pool (open 6AM-10PM)",
+  gym: "🏋️ Modern Gym (24/7)",
+  spa: "🧖 Spa & Massage (10AM-11PM)",
+  restaurant: "🍽️ 5-Star Restaurant (6AM-12AM)",
+  bar: "🍸 Bar & Lounge (5PM-2AM)",
+  parking: "🅿️ Free Parking",
+  wifi: "📶 Free WiFi (300 Mbps)",
+  transfer: "🚗 Airport Transfer Service",
   concierge: "🎩 Concierge 24/7",
-  laundry: "👕 Dịch vụ giặt (next day)",
+  laundry: "👕 Laundry Service (next day)",
 };
 
 // ============================================
@@ -97,19 +97,19 @@ export const HOTEL_SERVICES = {
 // ============================================
 
 export const MESSAGE_TEMPLATES = {
-  welcome: (userName) => `Chào ${userName}! 👋 Chào mừng quay lại!`,
+  welcome: (userName) => `Hello ${userName}! 👋 Welcome back!`,
 
   roomSuggestion: (room, nights, totalPrice) =>
-    `🏨 ${room.name}\n📅 ${nights} đêm\n💰 $${totalPrice} (${room.price}/đêm)`,
+    `🏨 ${room.name}\n📅 ${nights} nights\n💰 $${totalPrice} (${room.price}/night)`,
 
   bookingConfirmed: (code, roomName, checkIn, checkOut) =>
-    `🎉 Xác nhận thành công!\nMã: ${code}\nPhòng: ${roomName}\nNhận: ${checkIn}\nTrara: ${checkOut}`,
+    `🎉 Confirmation successful!\nCode: ${code}\nRoom: ${roomName}\nCheck-in: ${checkIn}\nCheck-out: ${checkOut}`,
 
   specialRequest: (request) =>
-    `📝 Yêu cầu: ${request}\nChúng tôi sẽ xử lý ASAP!`,
+    `📝 Request: ${request}\nWe will process ASAP!`,
 
   promotionAlert: (discount) =>
-    `🎉 Ưu đãi HOT!\nGiảm ${discount}% cho đặt hôm nay!`,
+    `🎉 HOT Deal!\n${discount}% off for bookings today!`,
 };
 
 // ============================================
@@ -122,29 +122,29 @@ export const VALIDATION_RULES = {
     minLength: 2,
     maxLength: 100,
     pattern: /^[a-zA-Z\s'-]+$/,
-    message: "Tên phải từ 2-100 ký tự, chỉ chứa chữ cái",
+    message: "Name must be 2-100 characters, letters only",
   },
   email: {
     required: true,
     pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    message: "Email không hợp lệ",
+    message: "Invalid email address",
   },
   phone: {
     required: false,
     pattern: /^(\+84|0)[0-9]{9,10}$/,
-    message: "Số điện thoại Việt Nam",
+    message: "Vietnamese phone number",
   },
   adults: {
     required: true,
     min: 1,
     max: 10,
-    message: "Từ 1-10 người lớn",
+    message: "1-10 adults",
   },
   kids: {
     required: true,
     min: 0,
     max: 10,
-    message: "Từ 0-10 trẻ em",
+    message: "0-10 children",
   },
 };
 
@@ -154,14 +154,14 @@ export const VALIDATION_RULES = {
 
 export const CONVERSATION_FLOWS = {
   newUser: [
-    "Xin chào! Đây là lần đầu bạn đặt phòng?",
-    "Bạn muốn tìm phòng hay có câu hỏi?",
+    "Hello! Is this your first time booking?",
+    "Do you want to find a room or have questions?",
   ],
-  returningUser: ["Chào mừng bạn quay lại!", "Lần này bạn muốn đặt phòng nào?"],
-  lastMinute: ["⚡ Đặt trong 24h: Giảm 20%!", "Phòng còn trống hôm nay?"],
+  returningUser: ["Welcome back!", "Which room would you like to book this time?"],
+  lastMinute: ["⚡ Book within 24h: 20% off!", "Rooms available today?"],
   groupBooking: [
-    "Nhóm từ 10 người trở lên: Giảm 30%",
-    "Liên hệ: group@hotel.com hoặc +84123456789",
+    "Groups of 10+ people: 30% off",
+    "Contact: group@hotel.com or +84123456789",
   ],
 };
 
@@ -170,13 +170,13 @@ export const CONVERSATION_FLOWS = {
 // ============================================
 
 export const ERROR_MESSAGES = {
-  NETWORK_ERROR: "❌ Lỗi kết nối. Vui lòng kiểm tra internet!",
-  BOOKING_FAILED: "❌ Không thể tạo đặt phòng. Thử lại?",
-  INVALID_INPUT: "❌ Thông tin không hợp lệ. Vui lòng kiểm tra!",
-  ROOM_UNAVAILABLE: "❌ Phòng không còn trống cho ngày này.",
-  PAYMENT_FAILED: "❌ Thanh toán thất bại. Thử phương thức khác?",
-  SERVER_ERROR: "❌ Lỗi máy chủ. Vui lòng thử lại sau!",
-  TOO_MANY_REQUESTS: "⏱️ Quá nhiều yêu cầu. Chờ 1 phút rồi thử lại!",
+  NETWORK_ERROR: "❌ Connection error. Please check your internet!",
+  BOOKING_FAILED: "❌ Unable to create booking. Try again?",
+  INVALID_INPUT: "❌ Invalid information. Please check!",
+  ROOM_UNAVAILABLE: "❌ Room is not available for these dates.",
+  PAYMENT_FAILED: "❌ Payment failed. Try another method?",
+  SERVER_ERROR: "❌ Server error. Please try again later!",
+  TOO_MANY_REQUESTS: "⏱️ Too many requests. Wait 1 minute and try again!",
 };
 
 // ============================================

@@ -6,18 +6,70 @@ import { supabase } from '../utils/supabaseClient';
 
 export const createBooking = async (bookingData) => {
   try {
+    // Normalize dates to ensure consistent format
+    const normalizeDate = (date) => {
+      if (!date) return null;
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return null;
+      return d.toISOString().split('T')[0]; // YYYY-MM-DD
+    };
+    
+    const normalizedCheckIn = normalizeDate(bookingData.check_in);
+    const normalizedCheckOut = normalizeDate(bookingData.check_out);
+    
+    if (!normalizedCheckIn || !normalizedCheckOut) {
+      throw new Error('Invalid date format for check-in or check-out');
+    }
+    
+    // CRITICAL: Check room availability before creating booking
+    // Use normalized dates for accurate comparison
+    const { checkRoomAvailability } = await import('./roomService');
+    const isAvailable = await checkRoomAvailability(
+      bookingData.room_id,
+      normalizedCheckIn,
+      normalizedCheckOut
+    );
+    
+    if (!isAvailable) {
+      throw new Error('Room is not available for the selected dates. It may have been booked by another user.');
+    }
+
+    // Update booking data with normalized dates
+    const bookingPayload = {
+      ...bookingData,
+      check_in: normalizedCheckIn,
+      check_out: normalizedCheckOut
+    };
+
     // Không gửi trường id lên Supabase để dùng default gen_random_uuid()
-    const { id, ...payload } = bookingData || {};
+    const { id, ...payload } = bookingPayload || {};
+
+    console.log('📝 Creating booking with payload:', {
+      room_id: payload.room_id,
+      check_in: payload.check_in,
+      check_out: payload.check_out,
+      status: payload.status
+    });
 
     const { data, error } = await supabase
       .from('bookings')
       .insert([payload])
       .select();
-    if (error) throw error;
+      
+    if (error) {
+      console.error('❌ Database error creating booking:', error);
+      // Check if error is due to double booking constraint
+      if (error.message && error.message.includes('overlapping')) {
+        throw new Error('Room is already booked for these dates. Please select different dates.');
+      }
+      throw error;
+    }
+    
+    console.log('✅ Booking created successfully:', data?.[0]?.id);
     return data?.[0] || null;
   } catch (err) {
-    console.error('Error creating room booking:', err);
-    return null;
+    console.error('❌ Error creating room booking:', err);
+    throw err; // Re-throw để caller có thể handle
   }
 };
 
@@ -478,8 +530,21 @@ export const updateRestaurantSlotUsage = async (slotId, guests) => {
       .single();
     if (slotErr) throw slotErr;
 
-    const capacityUsed = (slotData?.capacity_used || 0) + guests;
-    const isFull = capacityUsed >= (slotData?.capacity_limit || 0);
+    // Validate slot is available
+    if (slotData.status === 'booked') {
+      throw new Error('Slot is already fully booked');
+    }
+
+    const currentUsed = slotData?.capacity_used || 0;
+    const capacityLimit = slotData?.capacity_limit || 0;
+    const capacityUsed = currentUsed + guests;
+    
+    // Check if booking would exceed capacity (database trigger will also catch this)
+    if (capacityUsed > capacityLimit) {
+      throw new Error(`Booking exceeds slot capacity. Available: ${capacityLimit - currentUsed}, Requested: ${guests}`);
+    }
+
+    const isFull = capacityUsed >= capacityLimit;
 
     const { data, error } = await supabase
       .from('restaurant_slots')
@@ -494,7 +559,7 @@ export const updateRestaurantSlotUsage = async (slotId, guests) => {
     return data?.[0] || null;
   } catch (err) {
     console.error('Error updating restaurant slot usage:', err);
-    return null;
+    throw err; // Re-throw để caller có thể handle
   }
 };
 
@@ -614,12 +679,16 @@ export const updateSpaSlotUsage = async (slotId) => {
       .single();
     if (slotErr) throw slotErr;
 
-    const isFull = true; // spa slot capacity default 1
+    // Validate slot is available before booking
+    if (slotData.status !== 'available') {
+      throw new Error('Spa slot is not available for booking');
+    }
 
+    // Spa slot capacity is 1, so booking it means it's full
     const { data, error } = await supabase
       .from('spa_slots')
       .update({
-        status: isFull ? 'booked' : 'held',
+        status: 'booked',
         updated_at: new Date().toISOString(),
       })
       .eq('id', slotId)
@@ -628,7 +697,7 @@ export const updateSpaSlotUsage = async (slotId) => {
     return data?.[0] || null;
   } catch (err) {
     console.error('Error updating spa slot usage:', err);
-    return null;
+    throw err; // Re-throw để caller có thể handle
   }
 };
 

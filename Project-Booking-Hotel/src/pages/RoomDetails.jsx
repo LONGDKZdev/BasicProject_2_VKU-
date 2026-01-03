@@ -58,6 +58,8 @@ const RoomDetails = () => {
     hasUserBookedRoom,
     calculatePricingForRoom,
     getUserBookings,
+    cancelBooking,
+    promotions,
   } = useRoomContext();
   const { user, isAuthenticated } = useAuth();
 
@@ -122,6 +124,7 @@ const RoomDetails = () => {
   const [showInvoice, setShowInvoice] = useState(false);
   const [currentBooking, setCurrentBooking] = useState(null);
   const [reviews, setReviews] = useState([]);
+  const [promoValidation, setPromoValidation] = useState({ isValid: null, message: '' });
 
   const maxGuests = room?.maxPerson || 1;
 
@@ -298,7 +301,16 @@ const RoomDetails = () => {
       showToast({ type: 'error', message: 'Select both check-in and check-out dates.' });
       return false;
     }
-    if (new Date(reservation.checkOut) <= new Date(reservation.checkIn)) {
+    const checkInDate = new Date(reservation.checkIn);
+    const checkOutDate = new Date(reservation.checkOut);
+    
+    // Validate dates are valid
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      showToast({ type: 'error', message: 'Invalid date format. Please select valid dates.' });
+      return false;
+    }
+    
+    if (checkOutDate <= checkInDate) {
       showToast({ type: 'error', message: 'Check-out must be after check-in.' });
       return false;
     }
@@ -329,14 +341,15 @@ const RoomDetails = () => {
     return true;
   };
 
-  const handleBooking = (e) => {
+  const handleBooking = async (e) => {
     e.preventDefault();
     if (!validateBooking()) return;
 
     // Determine if this is a guest booking or authenticated booking
     const isGuestBooking = !isAuthenticated();
     
-    const result = bookRoom({
+    try {
+      const result = await bookRoom({
       roomId: room.id,
       roomName: room.name,
       userId: isGuestBooking ? null : user?.id, // null for guest bookings
@@ -369,6 +382,13 @@ const RoomDetails = () => {
       showToast({
         type: 'error',
         message: result?.error || 'Unable to complete booking. Please try another selection.',
+        });
+      }
+    } catch (err) {
+      console.error('Booking error:', err);
+      showToast({
+        type: 'error',
+        message: err.message || 'Unable to complete booking. Please try another selection.',
       });
     }
   };
@@ -387,7 +407,22 @@ const RoomDetails = () => {
     setReservation(prev => ({ ...prev, note: '' }));
   };
 
-  const handleCloseQRPayment = () => {
+  const handleCloseQRPayment = async () => {
+    // If booking exists and payment was not completed, cancel the booking
+    if (currentBooking && currentBooking.id) {
+      try {
+        if (cancelBooking) {
+          await cancelBooking(currentBooking.id, 'Payment cancelled by user');
+          showToast({
+            type: 'info',
+            message: 'Booking cancelled. Room is now available for other guests.',
+          });
+        }
+      } catch (err) {
+        console.error('Error cancelling booking:', err);
+        // Still close the modal even if cancel fails
+      }
+    }
     setShowQRPayment(false);
     setCurrentBooking(null);
   };
@@ -540,7 +575,7 @@ const RoomDetails = () => {
                             {review.stayDate ||
                               (review.createdAt
                                 ? new Date(review.createdAt).toLocaleDateString('vi-VN')
-                                : 'Khách ẩn danh')}
+                                : 'Anonymous Guest')}
                           </span>
                         </div>
                         <div className='flex text-accent'>
@@ -635,6 +670,7 @@ const RoomDetails = () => {
                       type='date'
                       value={reservation.checkIn}
                       onChange={(e) => handleReservationChange('checkIn', e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
                       className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
                     />
                   </div>
@@ -644,6 +680,7 @@ const RoomDetails = () => {
                       type='date'
                       value={reservation.checkOut}
                       onChange={(e) => handleReservationChange('checkOut', e.target.value)}
+                      min={reservation.checkIn ? new Date(new Date(reservation.checkIn).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
                       className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
                     />
                   </div>
@@ -745,10 +782,75 @@ const RoomDetails = () => {
                   <input
                     type='text'
                     value={reservation.promoCode}
-                    onChange={(e) => handleReservationChange('promoCode', e.target.value)}
-                    className='w-full bg-white border border-accent/20 px-4 py-3 focus:outline-none focus:border-accent'
+                    onChange={(e) => {
+                      const code = e.target.value.trim().toUpperCase();
+                      handleReservationChange('promoCode', code);
+                      
+                      // Real-time validation
+                      if (!code) {
+                        setPromoValidation({ isValid: null, message: '' });
+                      } else if (Array.isArray(promotions) && promotions.length > 0) {
+                        const promo = promotions.find(p => 
+                          p && p.is_active && p.code && p.code.toUpperCase() === code
+                        );
+                        
+                        if (promo) {
+                          // Check date range
+                          const now = new Date();
+                          const startDate = new Date(promo.start_date);
+                          startDate.setHours(0, 0, 0, 0);
+                          const endDate = new Date(promo.end_date);
+                          endDate.setHours(23, 59, 59, 999);
+                          const nowDate = new Date(now);
+                          nowDate.setHours(0, 0, 0, 0);
+                          
+                          if (nowDate < startDate) {
+                            setPromoValidation({ 
+                              isValid: false, 
+                              message: `Promotion starts on ${startDate.toLocaleDateString()}` 
+                            });
+                          } else if (nowDate > endDate) {
+                            setPromoValidation({ 
+                              isValid: false, 
+                              message: `Promotion expired on ${new Date(promo.end_date).toLocaleDateString()}` 
+                            });
+                          } else {
+                            const discountText = promo.discount_kind === 'percent' 
+                              ? `${promo.discount_value}% off`
+                              : `$${promo.discount_value} off`;
+                            setPromoValidation({ 
+                              isValid: true, 
+                              message: `Valid! ${discountText}` 
+                            });
+                          }
+                        } else {
+                          setPromoValidation({ 
+                            isValid: false, 
+                            message: 'Promotion code not found or inactive' 
+                          });
+                        }
+                      } else {
+                        setPromoValidation({ isValid: null, message: '' });
+                      }
+                    }}
+                    className={`w-full bg-white border px-4 py-3 focus:outline-none focus:border-accent ${
+                      promoValidation.isValid === true 
+                        ? 'border-green-500' 
+                        : promoValidation.isValid === false 
+                        ? 'border-red-500' 
+                        : 'border-accent/20'
+                    }`}
                     placeholder='E.g. WELCOME25'
                   />
+                  {promoValidation.message && (
+                    <p className={`text-xs mt-1 ${
+                      promoValidation.isValid === true 
+                        ? 'text-green-600' 
+                        : 'text-red-600'
+                    }`}>
+                      {promoValidation.message}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className='text-xs uppercase tracking-[2px] text-primary/60'>Special requests</label>

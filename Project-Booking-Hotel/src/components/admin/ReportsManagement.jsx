@@ -13,7 +13,10 @@ const ReportsManagement = () => {
   const [revenueData, setRevenueData] = useState({
     daily: [],
     monthly: [],
-    total: 0
+    total: 0,
+    roomRevenue: 0,
+    restaurantRevenue: 0,
+    spaRevenue: 0
   });
   const [occupancyData, setOccupancyData] = useState({
     rate: 0,
@@ -56,10 +59,23 @@ const ReportsManagement = () => {
         return;
       }
 
-      // Calculate total revenue
-      const roomRevenue = (bookings || []).reduce((sum, b) => sum + parseFloat(b.total_amount || 0), 0);
-      const restRevenue = (restaurantBookings || []).reduce((sum, b) => sum + parseFloat(b.total_price || 0), 0);
-      const spaRevenue = (spaBookings || []).reduce((sum, b) => sum + parseFloat(b.total_price || 0), 0);
+      // Calculate total revenue - safely parse and handle NaN
+      // Exclude cancelled and pending_payment bookings from revenue (only count paid bookings)
+      const roomRevenue = (bookings || []).reduce((sum, b) => {
+        if (b.status === 'cancelled' || b.status === 'pending_payment') return sum; // Skip cancelled and unpaid bookings
+        const amount = parseFloat(b.total_amount || 0);
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
+      const restRevenue = (restaurantBookings || []).reduce((sum, b) => {
+        if (b.status === 'cancelled' || b.status === 'pending_payment') return sum; // Skip cancelled and unpaid bookings
+        const amount = parseFloat(b.total_price || 0);
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
+      const spaRevenue = (spaBookings || []).reduce((sum, b) => {
+        if (b.status === 'cancelled' || b.status === 'pending_payment') return sum; // Skip cancelled and unpaid bookings
+        const amount = parseFloat(b.total_price || 0);
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
       const totalRevenue = roomRevenue + restRevenue + spaRevenue;
 
       // Calculate total bookings
@@ -86,25 +102,63 @@ const ReportsManagement = () => {
         const startDate = new Date(dateRange.startDate);
         const endDate = new Date(dateRange.endDate);
         
+        // Validate dates
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          console.warn('⚠️ Invalid date range for occupancy calculation');
+          return;
+        }
+        
+        if (startDate > endDate) {
+          console.warn('⚠️ Start date is after end date');
+          return;
+        }
+        
         // Initialize all dates in range
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        // Use a counter to prevent infinite loops
+        let maxIterations = 1000; // Safety limit
+        let iterations = 0;
+        for (let d = new Date(startDate); d <= endDate && iterations < maxIterations; d.setDate(d.getDate() + 1)) {
+          iterations++;
           const dateStr = d.toISOString().split('T')[0];
           occupancyMap.set(dateStr, { date: dateStr, occupied: 0, total: totalRooms, rate: 0 });
+        }
+        
+        if (iterations >= maxIterations) {
+          console.warn('⚠️ Date range too large, occupancy calculation may be incomplete');
         }
 
         // Calculate occupancy for each date based on bookings
         (bookings || []).forEach(booking => {
-          if (booking.status === 'confirmed' || booking.status === 'checked_in') {
+          if (booking && (booking.status === 'confirmed' || booking.status === 'checked_in')) {
             const checkIn = new Date(booking.check_in);
             const checkOut = new Date(booking.check_out);
             
-            for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
+            // Validate dates
+            if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) {
+              console.warn('⚠️ Invalid booking dates:', booking.check_in, booking.check_out);
+              return;
+            }
+            
+            if (checkIn >= checkOut) {
+              console.warn('⚠️ Invalid booking date range (check-in >= check-out):', booking.check_in, booking.check_out);
+              return;
+            }
+            
+            // Safety limit for date iteration
+            let maxIterations = 365; // Max 1 year
+            let iterations = 0;
+            for (let d = new Date(checkIn); d < checkOut && iterations < maxIterations; d.setDate(d.getDate() + 1)) {
+              iterations++;
               const dateStr = d.toISOString().split('T')[0];
               if (occupancyMap.has(dateStr)) {
                 const dayData = occupancyMap.get(dateStr);
                 dayData.occupied += 1;
                 dayData.rate = totalRooms > 0 ? (dayData.occupied / totalRooms) * 100 : 0;
               }
+            }
+            
+            if (iterations >= maxIterations) {
+              console.warn('⚠️ Booking date range too large, occupancy calculation may be incomplete:', booking.id);
             }
           }
         });
@@ -119,12 +173,22 @@ const ReportsManagement = () => {
         setOccupancyHistory(history);
       }
 
-      // Group revenue by date
+      // Group revenue by date - exclude cancelled and pending_payment bookings
       const dailyMap = new Map();
       [...(bookings || []), ...(restaurantBookings || []), ...(spaBookings || [])].forEach(booking => {
-        const date = new Date(booking.created_at).toISOString().split('T')[0];
+        if (!booking || !booking.created_at) return;
+        if (booking.status === 'cancelled' || booking.status === 'pending_payment') return; // Skip cancelled and unpaid bookings
+        
+        const createdDate = new Date(booking.created_at);
+        if (isNaN(createdDate.getTime())) {
+          console.warn('⚠️ Invalid created_at date:', booking.created_at);
+          return;
+        }
+        
+        const date = createdDate.toISOString().split('T')[0];
         const amount = parseFloat(booking.total_amount || booking.total_price || 0);
-        dailyMap.set(date, (dailyMap.get(date) || 0) + amount);
+        const validAmount = isNaN(amount) ? 0 : amount;
+        dailyMap.set(date, (dailyMap.get(date) || 0) + validAmount);
       });
 
       const daily = Array.from(dailyMap.entries())
@@ -134,7 +198,10 @@ const ReportsManagement = () => {
       setRevenueData({
         daily,
         monthly: [], // Can be calculated from daily if needed
-        total: totalRevenue
+        total: totalRevenue,
+        roomRevenue: roomRevenue,
+        restaurantRevenue: restRevenue,
+        spaRevenue: spaRevenue
       });
 
       setTotalBookings(total);
@@ -190,7 +257,7 @@ const ReportsManagement = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-6">
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-primary">Total Revenue</h3>
@@ -204,26 +271,48 @@ const ReportsManagement = () => {
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-primary">Occupancy Rate</h3>
-            <FaBed className="text-3xl text-accent" />
+            <h3 className="text-lg font-semibold text-primary">Room Revenue</h3>
+            <FaBed className="text-2xl text-blue-500" />
           </div>
-          <p className="text-3xl font-bold text-accent">
-            {isLoading ? '...' : `${occupancyData.rate.toFixed(1)}%`}
+          <p className="text-2xl font-bold text-blue-600">
+            {isLoading ? '...' : `$${revenueData.roomRevenue.toLocaleString()}`}
           </p>
-          <p className="text-sm text-gray-500 mt-2">
-            {occupancyData.occupied} / {occupancyData.total} rooms
-          </p>
+          <p className="text-xs text-gray-500 mt-2">Room bookings</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-primary">Total Bookings</h3>
-            <FaChartBar className="text-3xl text-accent" />
+            <h3 className="text-lg font-semibold text-primary">Restaurant Revenue</h3>
+            <FaDollarSign className="text-2xl text-orange-500" />
           </div>
-          <p className="text-3xl font-bold text-accent">
-            {isLoading ? '...' : totalBookings}
+          <p className="text-2xl font-bold text-orange-600">
+            {isLoading ? '...' : `$${revenueData.restaurantRevenue.toLocaleString()}`}
           </p>
-          <p className="text-sm text-gray-500 mt-2">Number of bookings</p>
+          <p className="text-xs text-gray-500 mt-2">Restaurant bookings</p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-primary">Spa Revenue</h3>
+            <FaDollarSign className="text-2xl text-pink-500" />
+          </div>
+          <p className="text-2xl font-bold text-pink-600">
+            {isLoading ? '...' : `$${revenueData.spaRevenue.toLocaleString()}`}
+          </p>
+          <p className="text-xs text-gray-500 mt-2">Spa bookings</p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-primary">Occupancy Rate</h3>
+            <FaBed className="text-2xl text-accent" />
+          </div>
+          <p className="text-2xl font-bold text-accent">
+            {isLoading ? '...' : `${occupancyData.rate.toFixed(1)}%`}
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            {occupancyData.occupied} / {occupancyData.total} rooms
+          </p>
         </div>
       </div>
 

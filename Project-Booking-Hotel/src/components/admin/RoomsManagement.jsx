@@ -64,9 +64,9 @@ const RoomsManagement = () => {
       room_no: room.room_no || '',
       name: room.name || '',
       room_type_id: room.room_type_id || '',
-      floor: room.floor || '',
-      size: room.size || '',
-      price: room.price || '',
+      floor: room.floor !== null && room.floor !== undefined ? String(room.floor) : '',
+      size: room.size !== null && room.size !== undefined ? String(room.size) : '',
+      price: room.price !== null && room.price !== undefined ? String(room.price) : '',
       description: room.description || '',
       status: room.status || 'available'
     });
@@ -85,10 +85,10 @@ const RoomsManagement = () => {
         room_no: formData.room_no.trim(),
         name: formData.name.trim(),
         room_type_id: formData.room_type_id,
-        floor: formData.floor ? parseInt(formData.floor) : null,
-        size: formData.size ? parseInt(formData.size) : null,
-        price: parseFloat(formData.price),
-        description: formData.description.trim(),
+        floor: formData.floor && formData.floor.trim() ? parseInt(formData.floor) : null,
+        size: formData.size && formData.size.trim() ? parseInt(formData.size) : null,
+        price: formData.price && formData.price.trim() ? parseFloat(formData.price) : null,
+        description: formData.description.trim() || null,
         status: formData.status,
       };
 

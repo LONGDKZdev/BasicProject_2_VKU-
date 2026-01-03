@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { FaEdit, FaTrash, FaUser, FaEnvelope, FaLock, FaCheck, FaTimes, FaBriefcase } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaUser, FaEnvelope, FaSpinner, FaCheck, FaTimes, FaBriefcase, FaExclamationCircle } from 'react-icons/fa';
 import { AdminTable } from '../../features/admin';
-import { fetchUsersForAdmin, updateUserAdmin, deleteUserProfileAdmin } from '../../services/adminService';
+import { fetchAllUsers, fetchUserById, updateUser, deleteUser } from '../../services/adminService';
 
 const UsersManagement = () => {
   const [users, setUsers] = useState([]);
@@ -25,7 +25,7 @@ const UsersManagement = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const usersData = await fetchUsersForAdmin();
+      const usersData = await fetchAllUsers();
       setUsers(usersData);
     } catch (err) {
       console.error('Error loading users:', err);
@@ -35,17 +35,30 @@ const UsersManagement = () => {
     }
   };
 
-  const handleEdit = (user) => {
+  const handleEdit = async (user) => {
     if (!user.id) {
       setError('Cannot edit user without a valid ID.');
       return;
     }
-    setEditingUser(user);
-    setFormData({
-      full_name: user.full_name || '',
-      role: user.role || 'user'
-    });
-    setIsModalOpen(true);
+    
+    // Fetch full user data to ensure we have all fields
+    try {
+      const fullUser = await fetchUserById(user.id);
+      if (!fullUser) {
+        setError('Failed to load user details');
+        return;
+      }
+      
+      setEditingUser(fullUser);
+      setFormData({
+        full_name: fullUser.full_name || '',
+        role: fullUser.role || 'user'
+      });
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error('Error fetching user details:', err);
+      setError('Failed to load user details');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -61,11 +74,15 @@ const UsersManagement = () => {
         role: formData.role
       };
       
-      await updateUserAdmin(editingUser.id, valuesToUpdate);
-      setSuccess(`User ${formData.full_name} updated successfully`);
-      await loadData();
-      closeModal();
-      setTimeout(() => setSuccess(null), 3000);
+      const updated = await updateUser(editingUser.id, valuesToUpdate);
+      if (updated) {
+        setSuccess(`User ${formData.full_name} updated successfully`);
+        await loadData();
+        closeModal();
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError('Failed to update user');
+      }
     } catch (err) {
       console.error('Failed to save changes:', err);
       setError(err.message || 'Failed to update user');
@@ -76,18 +93,22 @@ const UsersManagement = () => {
 
   const handleDelete = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user account? This action cannot be undone.')) {
-      setIsLoading(true);
+      setIsUpdating(true);
       setError(null);
       try {
-        await deleteUserProfileAdmin(userId);
-        setSuccess('User deleted successfully');
-        await loadData();
-        setTimeout(() => setSuccess(null), 3000);
+        const success = await deleteUser(userId);
+        if (success) {
+          setUsers((prev) => prev.filter((u) => u.id !== userId));
+          setSuccess('User deleted successfully');
+          setTimeout(() => setSuccess(null), 3000);
+        } else {
+          setError('Failed to delete user');
+        }
       } catch (err) {
         console.error('Failed to delete user:', err);
         setError(err.message || 'Failed to delete user');
       } finally {
-        setIsLoading(false);
+        setIsUpdating(false);
       }
     }
   };
@@ -121,8 +142,16 @@ const UsersManagement = () => {
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          ❌ {error}
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-center gap-3">
+          <FaExclamationCircle size={20} />
+          <p className="flex-1">{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-500 hover:text-red-700 transition-colors"
+            title="Close"
+          >
+            <FaTimes />
+          </button>
         </div>
       )}
 
@@ -166,31 +195,60 @@ const UsersManagement = () => {
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      {/* Loading State or Users Table */}
+      {isLoading && users.length === 0 ? (
+        <div className="flex items-center justify-center py-12 bg-white rounded-lg shadow-md">
+          <FaSpinner className="animate-spin text-accent text-3xl" />
+          <span className="ml-3 text-gray-600">Loading users...</span>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-accent text-white">
               <tr>
                 <th className="px-6 py-4 text-left font-tertiary tracking-wider">Name</th>
                 <th className="px-6 py-4 text-left font-tertiary tracking-wider">Email</th>
+                <th className="px-6 py-4 text-left font-tertiary tracking-wider">Phone</th>
                 <th className="px-6 py-4 text-left font-tertiary tracking-wider">Role</th>
                 <th className="px-6 py-4 text-left font-tertiary tracking-wider">Created At</th>
                 <th className="px-6 py-4 text-center font-tertiary tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {users.length === 0 && !isLoading ? (
+              {isLoading ? (
                 <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan="6" className="px-6 py-12 text-center">
+                    <div className="flex items-center justify-center gap-3">
+                      <FaSpinner className="animate-spin text-accent text-2xl" />
+                      <span className="text-gray-600">Loading users...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
                     No users found
                   </td>
                 </tr>
               ) : (
                 users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-semibold">{user.full_name || '-'}</td>
-                    <td className="px-6 py-4">{user.email || '-'}</td>
+                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-accent/10 rounded-full flex items-center justify-center">
+                          <FaUser className="text-accent" size={14} />
+                        </div>
+                        <span className="font-medium">{user.full_name || 'N/A'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <FaEnvelope className="text-gray-400" size={14} />
+                        {user.email || '-'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm">{user.phone || '-'}</td>
                     <td className="px-6 py-4">
                       {getRoleBadge(user.role)}
                     </td>
@@ -231,6 +289,7 @@ const UsersManagement = () => {
           </table>
         </div>
       </div>
+      )}
 
       {/* Edit Modal */}
       {isModalOpen && editingUser && (
@@ -238,6 +297,9 @@ const UsersManagement = () => {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6 border-b border-gray-200">
               <h2 className="h3 text-primary">Edit User Profile</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Update user information
+              </p>
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -278,15 +340,21 @@ const UsersManagement = () => {
                   </select>
                 </div>
               </div>
+
+              {/* Read-Only Email */}
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-primary">
+                  Email (Read-Only)
+                </label>
+                <input
+                  type="email"
+                  value={editingUser.email || ''}
+                  disabled
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                />
+              </div>
               
               <div className="flex gap-4 pt-4 border-t border-gray-200">
-                <button
-                  type="submit"
-                  className="btn btn-primary btn-sm flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? 'Saving...' : <><FaCheck /> Save Changes</>}
-                </button>
                 <button
                   type="button"
                   onClick={closeModal}
@@ -294,6 +362,22 @@ const UsersManagement = () => {
                   disabled={isUpdating}
                 >
                   <FaTimes /> Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
+                  disabled={isUpdating}
+                >
+                  {isUpdating ? (
+                    <>
+                      <FaSpinner className="animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FaCheck /> Save Changes
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -66,17 +66,17 @@ const PriceRulesManagement = () => {
     e.preventDefault();
     try {
       const values = {
-        rule_type: formData.rule_type,
-        room_type_id: formData.room_type_id || null,
-        price: parseFloat(formData.price),
-        apply_fri: formData.apply_fri,
-        apply_sat: formData.apply_sat,
-        apply_sun: formData.apply_sun,
-        start_date: formData.start_date || null,
-        end_date: formData.end_date || null,
-        description: formData.description,
-        priority: parseInt(formData.priority),
-        is_active: formData.is_active
+        rule_type: formData.rule_type || null,
+        room_type_id: formData.room_type_id && formData.room_type_id.trim() ? formData.room_type_id : null,
+        price: formData.price && formData.price.trim() ? parseFloat(formData.price) : null,
+        apply_fri: formData.apply_fri !== undefined ? formData.apply_fri : false,
+        apply_sat: formData.apply_sat !== undefined ? formData.apply_sat : false,
+        apply_sun: formData.apply_sun !== undefined ? formData.apply_sun : false,
+        start_date: formData.start_date && formData.start_date.trim() ? formData.start_date : null,
+        end_date: formData.end_date && formData.end_date.trim() ? formData.end_date : null,
+        description: formData.description && formData.description.trim() ? formData.description.trim() : null,
+        priority: formData.priority && formData.priority.trim() ? parseInt(formData.priority) : 10,
+        is_active: formData.is_active !== undefined ? formData.is_active : true
       };
 
       if (editingItem) {
@@ -120,6 +120,18 @@ const PriceRulesManagement = () => {
         return (
           <span className="px-3 py-1 bg-accent/20 text-accent rounded-full text-sm font-semibold">
             {type?.label || value}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'room_types',
+      label: 'Room Type',
+      render: (value, row) => {
+        if (!value || !value.code) return <span className="text-gray-500">All Types</span>;
+        return (
+          <span className="font-semibold">
+            {value.code} - {value.name}
           </span>
         );
       }

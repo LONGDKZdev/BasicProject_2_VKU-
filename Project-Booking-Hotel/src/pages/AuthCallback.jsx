@@ -138,21 +138,13 @@ const AuthCallback = () => {
                       console.warn('Error updating last_login:', updateError);
                     }
 
+                    // Login vào tài khoản đã tồn tại
                     loginManual(existingUserData);
-
-                    const passwordHash = String(existingUserData.password_hash || '').trim();
-                    if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
-                      setStatus('success');
-                      setMessage('Login successful! Please set password.');
-                      setTimeout(() => {
-                        navigate(`/set-password?email=${encodeURIComponent(supabaseUser.email)}`);
-                      }, 2000);
-                      return;
-                    }
-
                     setStatus('success');
                     setMessage('Login successful!');
-                    setTimeout(() => navigate('/'), 2000);
+                    setTimeout(() => {
+                      navigate('/');
+                    }, 1500);
                     return;
                   } else {
                     // Lỗi khác, throw error
@@ -165,12 +157,13 @@ const AuthCallback = () => {
                   throw new Error('Account creation failed - no data received');
                 }
 
-                setUser(newUser);
+                // Login vào tài khoản mới tạo
+                loginManual(newUser);
                 setStatus('success');
-                setMessage('Login successful! Please set password.');
+                setMessage('Account created and logged in successfully!');
                 setTimeout(() => {
-                  navigate(`/set-password?email=${encodeURIComponent(supabaseUser.email)}`);
-                }, 2000);
+                  navigate('/');
+                }, 1500);
                 return;
               } else {
                 // Update last_login
@@ -183,21 +176,13 @@ const AuthCallback = () => {
                   console.warn('Error updating last_login:', updateError);
                 }
 
+                // Login vào tài khoản đã tồn tại
                 loginManual(existingUser);
-
-                const passwordHash = String(existingUser.password_hash || '').trim();
-                if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
-                  setStatus('success');
-                  setMessage('Login successful! Please set password.');
-                  setTimeout(() => {
-                    navigate(`/set-password?email=${encodeURIComponent(supabaseUser.email)}`);
-                  }, 2000);
-                  return;
-                }
-
                 setStatus('success');
                 setMessage('Login successful!');
-                setTimeout(() => navigate('/'), 2000);
+                setTimeout(() => {
+                  navigate('/');
+                }, 1500);
                 return;
               }
             } else {
@@ -305,20 +290,19 @@ const AuthCallback = () => {
                 throw new Error('Account creation failed - no data received');
               }
 
-              // Set user vào context
+              // Login vào tài khoản mới tạo
               try {
-                setUser(newUser);
-              } catch (setUserError) {
-                console.error('Error setting user in context:', setUserError);
-                // Vẫn tiếp tục vì user đã được tạo
+                loginManual(newUser);
+              } catch (loginError) {
+                console.error('Error logging in user:', loginError);
+                throw new Error('Failed to log in after account creation');
               }
 
-              // Redirect đến SetPassword để đặt mật khẩu
               setStatus('success');
-              setMessage('Login successful! Please set password.');
+              setMessage('Account created and logged in successfully!');
               setTimeout(() => {
-                navigate(`/set-password?email=${encodeURIComponent(finalEmail)}`);
-              }, 3000);
+                navigate('/');
+              }, 1500);
               return;
             } else {
               // User đã tồn tại
@@ -333,29 +317,19 @@ const AuthCallback = () => {
                 // Không throw, chỉ log warning
               }
 
-              // Set user vào context
+              // Login vào tài khoản đã tồn tại
               try {
-                setUser(existingUser);
-              } catch (setUserError) {
-                console.error('Error setting user in context:', setUserError);
-                throw new Error('Error When Login');
+                loginManual(existingUser);
+              } catch (loginError) {
+                console.error('Error logging in user:', loginError);
+                throw new Error('Failed to log in');
               }
 
-              // Check xem user có cần set password không (trim để tránh whitespace)
-              const passwordHash = String(existingUser.password_hash || '').trim();
-              if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
-                setStatus('success');
-                setMessage('Login successful! Please set password.');
-                setTimeout(() => {
-                  navigate(`/set-password?email=${encodeURIComponent(finalEmail)}`);
-                }, 3000);
-                return;
-              }
-
-              // User đã có password, login thành công
               setStatus('success');
               setMessage('Login successful!');
-              setTimeout(() => navigate('/'), 5000);
+              setTimeout(() => {
+                navigate('/');
+              }, 1500);
               return;
             }
           } catch (userError) {
@@ -436,25 +410,19 @@ const AuthCallback = () => {
                         console.warn('Error updating last_login:', updateError);
                       }
 
+                      // Login vào tài khoản đã tồn tại
                       try {
-                        setUser(existingUserData);
-                      } catch (setUserError) {
-                        console.error('Error setting user in context:', setUserError);
-                      }
-
-                      const passwordHash = String(existingUserData.password_hash || '').trim();
-                      if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
-                        setStatus('success');
-                        setMessage('Login successful! Please set password.');
-                        setTimeout(() => {
-                          navigate(`/set-password?email=${encodeURIComponent(result.user.email)}`);
-                        }, 2000);
-                        return;
+                        loginManual(existingUserData);
+                      } catch (loginError) {
+                        console.error('Error logging in user:', loginError);
+                        throw new Error('Failed to log in');
                       }
 
                       setStatus('success');
                       setMessage('Login successful!');
-                      setTimeout(() => navigate('/'), 2000);
+                      setTimeout(() => {
+                        navigate('/');
+                      }, 1500);
                       return;
                     } else {
                       // Lỗi khác, throw error
@@ -467,19 +435,19 @@ const AuthCallback = () => {
                     throw new Error('Account creation failed - no data received');
                   }
 
-                  // Set user vào context
+                  // Login vào tài khoản mới tạo
                   try {
-                    setUser(newUser);
-                  } catch (setUserError) {
-                    console.error('Error setting user in context:', setUserError);
+                    loginManual(newUser);
+                  } catch (loginError) {
+                    console.error('Error logging in user:', loginError);
+                    throw new Error('Failed to log in after account creation');
                   }
 
-                  // Redirect đến SetPassword để đặt mật khẩu
                   setStatus('success');
-                  setMessage('Login successful! Please set password.');
+                  setMessage('Account created and logged in successfully!');
                   setTimeout(() => {
-                    navigate(`/set-password?email=${encodeURIComponent(result.user.email)}`);
-                  }, 3000);
+                    navigate('/');
+                  }, 1500);
                   return;
                 } else {
                   // Update last_login
@@ -492,29 +460,19 @@ const AuthCallback = () => {
                     console.warn('Error updating last_login:', updateError);
                   }
 
-                  // Set user vào context
+                  // Login vào tài khoản đã tồn tại
                   try {
-                    setUser(existingUser);
-                  } catch (setUserError) {
-                    console.error('Error setting user in context:', setUserError);
-                    throw new Error('Error when logging in');
+                    loginManual(existingUser);
+                  } catch (loginError) {
+                    console.error('Error logging in user:', loginError);
+                    throw new Error('Failed to log in');
                   }
 
-                  // Check xem user có cần set password không (trim để tránh whitespace)
-                  const passwordHash = String(existingUser.password_hash || '').trim();
-                  if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
-                    setStatus('success');
-                    setMessage('Login successful! Please set password.');
-                    setTimeout(() => {
-                      navigate(`/set-password?email=${encodeURIComponent(result.user.email)}`);
-                    }, 3000);
-                    return;
-                  }
-
-                  // User đã có password, login thành công
                   setStatus('success');
                   setMessage('Login successful!');
-                  setTimeout(() => navigate('/'), 5000);
+                  setTimeout(() => {
+                    navigate('/');
+                  }, 1500);
                   return;
                 }
               }
@@ -610,25 +568,19 @@ const AuthCallback = () => {
                   console.warn('Error updating last_login:', updateError);
                 }
 
+                // Login vào tài khoản đã tồn tại
                 try {
                   loginManual(existingUserData);
-                } catch (setUserError) {
-                  console.error('Error setting user in context:', setUserError);
-                }
-
-                const passwordHash = String(existingUserData.password_hash || '').trim();
-                if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
-                  setStatus('success');
-                  setMessage('Login successful! Please set password.');
-                  setTimeout(() => {
-                    navigate(`/set-password?email=${encodeURIComponent(supabaseUser.email)}`);
-                  }, 2000);
-                  return;
+                } catch (loginError) {
+                  console.error('Error logging in user:', loginError);
+                  throw new Error('Failed to log in');
                 }
 
                 setStatus('success');
                 setMessage('Login successful!');
-                setTimeout(() => navigate('/'), 2000);
+                setTimeout(() => {
+                  navigate('/');
+                }, 1500);
                 return;
               } else {
                 // Lỗi khác, throw error
@@ -641,19 +593,19 @@ const AuthCallback = () => {
               throw new Error('Account creation failed - no data received');
             }
 
-            // Set user vào context
+            // Login vào tài khoản mới tạo
             try {
-              setUser(newUser);
-            } catch (setUserError) {
-              console.error('Error setting user in context:', setUserError);
+              loginManual(newUser);
+            } catch (loginError) {
+              console.error('Error logging in user:', loginError);
+              throw new Error('Failed to log in after account creation');
             }
 
-            // Redirect đến SetPassword để đặt mật khẩu
             setStatus('success');
-            setMessage('Login successful! Please set password.');
+            setMessage('Account created and logged in successfully!');
             setTimeout(() => {
-              navigate(`/set-password?email=${encodeURIComponent(supabaseUser.email)}`);
-            }, 3000);
+              navigate('/');
+            }, 1500);
             return;
           } else {
             // Update last_login
@@ -666,29 +618,19 @@ const AuthCallback = () => {
               console.warn('Error updating last_login:', updateError);
             }
 
-            // Set user vào context
+            // Login vào tài khoản đã tồn tại
             try {
               loginManual(existingUser);
-            } catch (setUserError) {
-              console.error('Error setting user in context:', setUserError);
-              throw new Error('Error when logging in');
+            } catch (loginError) {
+              console.error('Error logging in user:', loginError);
+              throw new Error('Failed to log in');
             }
 
-            // Check xem user có cần set password không (trim để tránh whitespace)
-            const passwordHash = String(existingUser.password_hash || '').trim();
-            if (passwordHash === 'oauth_user' || passwordHash === '' || !passwordHash) {
-              setStatus('success');
-              setMessage('Login successful! Please set password.');
-              setTimeout(() => {
-                navigate(`/set-password?email=${encodeURIComponent(supabaseUser.email)}`);
-              }, 3000);
-              return;
-            }
-
-            // User đã có password, login thành công
             setStatus('success');
             setMessage('Login successful!');
-            setTimeout(() => navigate('/'), 5000);
+            setTimeout(() => {
+              navigate('/');
+            }, 1500);
             return;
           }
         }
@@ -725,7 +667,7 @@ const AuthCallback = () => {
     };
 
     handleCallback();
-  }, [navigate, searchParams, setUser]);
+  }, [navigate, searchParams, setUser, loginManual]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary via-primary to-accent/20 flex items-center justify-center p-4">

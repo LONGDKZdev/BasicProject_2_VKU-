@@ -78,14 +78,14 @@ const RoomTypesManagement = () => {
   const openEditModal = (roomType) => {
     setEditingItem(roomType);
     setFormData({
-      code: roomType.code,
-      name: roomType.name,
+      code: roomType.code || '',
+      name: roomType.name || '',
       description: roomType.description || '',
-      base_capacity: roomType.base_capacity || '',
-      max_person: roomType.max_person || '',
-      base_price: roomType.base_price || '',
-      facilities: roomType.facilities || [],
-      is_active: roomType.is_active
+      base_capacity: roomType.base_capacity !== null && roomType.base_capacity !== undefined ? String(roomType.base_capacity) : '',
+      max_person: roomType.max_person !== null && roomType.max_person !== undefined ? String(roomType.max_person) : '',
+      base_price: roomType.base_price !== null && roomType.base_price !== undefined ? String(roomType.base_price) : '',
+      facilities: Array.isArray(roomType.facilities) ? roomType.facilities : [],
+      is_active: roomType.is_active !== undefined ? roomType.is_active : true
     });
     setIsModalOpen(true);
   };
@@ -112,12 +112,12 @@ const RoomTypesManagement = () => {
       const values = {
         code: formData.code.trim(),
         name: formData.name.trim(),
-        description: formData.description.trim(),
-        base_capacity: parseInt(formData.base_capacity) || 1,
-        max_person: parseInt(formData.max_person) || 2,
-        base_price: parseFloat(formData.base_price) || 0,
-        facilities: formData.facilities,
-        is_active: formData.is_active
+        description: formData.description.trim() || null,
+        base_capacity: formData.base_capacity && formData.base_capacity.trim() ? parseInt(formData.base_capacity) : null,
+        max_person: formData.max_person && formData.max_person.trim() ? parseInt(formData.max_person) : null,
+        base_price: formData.base_price && formData.base_price.trim() ? parseFloat(formData.base_price) : null,
+        facilities: Array.isArray(formData.facilities) ? formData.facilities : [],
+        is_active: formData.is_active !== undefined ? formData.is_active : true
       };
 
       if (editingItem) {

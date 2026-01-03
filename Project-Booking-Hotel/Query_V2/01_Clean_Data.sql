@@ -35,6 +35,8 @@ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'bookings') THEN
     DROP TRIGGER IF EXISTS set_bookings_updated_at ON public.bookings CASCADE;
+    DROP TRIGGER IF EXISTS trigger_check_room_availability_insert ON public.bookings CASCADE;
+    DROP TRIGGER IF EXISTS trigger_check_room_availability_update ON public.bookings CASCADE;
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'audit_logs') THEN
     DROP TRIGGER IF EXISTS audit_logs_trigger ON public.audit_logs CASCADE;
@@ -55,12 +57,14 @@ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'restaurant_slots') THEN
     DROP TRIGGER IF EXISTS set_restaurant_slots_updated_at ON public.restaurant_slots CASCADE;
+    DROP TRIGGER IF EXISTS trigger_check_restaurant_slot_capacity ON public.restaurant_slots CASCADE;
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'spa_services') THEN
     DROP TRIGGER IF EXISTS set_spa_services_updated_at ON public.spa_services CASCADE;
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'spa_slots') THEN
     DROP TRIGGER IF EXISTS set_spa_slots_updated_at ON public.spa_slots CASCADE;
+    DROP TRIGGER IF EXISTS trigger_check_spa_slot_availability ON public.spa_slots CASCADE;
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'contact_messages') THEN
     DROP TRIGGER IF EXISTS set_contact_messages_updated_at ON public.contact_messages CASCADE;
@@ -108,6 +112,10 @@ drop function if exists public.log_changes() cascade;
 drop function if exists public.auto_audit_log() cascade;
 drop function if exists public.is_restaurant_slot_available(uuid, timestamptz, int) cascade;
 drop function if exists public.is_spa_slot_available(uuid, text, timestamptz) cascade;
+-- Drop prevent double booking functions
+drop function if exists public.check_room_availability() cascade;
+drop function if exists public.check_restaurant_slot_capacity() cascade;
+drop function if exists public.check_spa_slot_availability() cascade;
 
 -- 5. Xoá hàm và types (types phải xóa sau khi drop tables vì có thể đang được sử dụng)
 drop function if exists public.get_available_rooms(date, date, int);

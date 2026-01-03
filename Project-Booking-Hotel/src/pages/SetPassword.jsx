@@ -21,7 +21,7 @@ const SetPassword = () => {
   const email = searchParams.get('email') || user?.email;
 
   useEffect(() => {
-    // Nếu không có email, redirect về login
+    // If no email, redirect to login
     if (!email && !user) {
       navigate('/login');
     }
@@ -53,22 +53,22 @@ const SetPassword = () => {
     setError('');
     setLoading(true);
 
-    // Validation - Tương tự Register.jsx
+    // Validation - Similar to Register.jsx
     if (!password || !confirmPassword) {
-      setError('Vui lòng điền đầy đủ thông tin');
+      setError('Please fill in all information');
       setLoading(false);
       return;
     }
 
     // Validate password strength
     if (!isPasswordValid) {
-      setError('Mật khẩu không đáp ứng đủ yêu cầu. Vui lòng kiểm tra các yêu cầu bên dưới.');
+      setError('Password does not meet requirements. Please check the requirements below.');
       setLoading(false);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp');
+      setError('Passwords do not match');
       setLoading(false);
       return;
     }
@@ -77,10 +77,10 @@ const SetPassword = () => {
       // Hash password
       const passwordHash = await hashPassword(password);
 
-      // Tìm user hiện tại
+      // Find current user
       const targetEmail = email || user?.email;
       if (!targetEmail) {
-        throw new Error('Không tìm thấy email');
+        throw new Error('Email not found');
       }
 
       const { data: existingUser, error: findError } = await supabase
@@ -90,11 +90,11 @@ const SetPassword = () => {
         .single();
 
       if (findError && findError.code !== 'PGRST116') {
-        throw new Error('Không tìm thấy tài khoản');
+        throw new Error('Account not found');
       }
 
       if (!existingUser) {
-        throw new Error('Tài khoản không tồn tại');
+        throw new Error('Account does not exist');
       }
 
       // Update password
@@ -109,24 +109,24 @@ const SetPassword = () => {
         .single();
 
       if (updateError) {
-        throw new Error('Không thể cập nhật mật khẩu: ' + updateError.message);
+        throw new Error('Unable to update password: ' + updateError.message);
       }
 
-      // Update user trong context
+      // Update user in context
       setUser(updatedUser);
 
       setToast({
-        message: 'Đặt mật khẩu thành công!',
+        message: 'Password set successfully!',
         type: 'success'
       });
 
-      // Redirect về home sau 1.5 giây
+      // Redirect to home after 1.5 seconds
       setTimeout(() => {
         navigate('/');
       }, 1500);
     } catch (err) {
       console.error('Set password error:', err);
-      setError(err.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
+      setError(err.message || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -146,10 +146,10 @@ const SetPassword = () => {
               <FaLock className="text-2xl text-accent" />
             </div>
             <h2 className="text-2xl font-bold text-primary mb-2">
-              Đặt Mật Khẩu
+              Set Password
             </h2>
             <p className="text-gray-600 text-sm">
-              Vui lòng đặt mật khẩu cho tài khoản của bạn
+              Please set a password for your account
             </p>
             {email && (
               <p className="text-gray-500 text-xs mt-2">
@@ -175,7 +175,7 @@ const SetPassword = () => {
 
             <div>
               <label className="block text-sm font-semibold mb-2 text-primary">
-                Mật khẩu mới
+                New Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -186,7 +186,7 @@ const SetPassword = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
-                  placeholder="Nhập mật khẩu mới"
+                  placeholder="Enter new password"
                   required
                   disabled={loading}
                   minLength={8}
@@ -203,7 +203,7 @@ const SetPassword = () => {
               {/* Password Strength Indicator - Tương tự Register.jsx */}
               {password && (
                 <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Yêu cầu mật khẩu:</p>
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Password Requirements:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     <div className={`flex items-center gap-2 text-xs ${passwordRequirements.minLength ? 'text-green-600' : 'text-gray-500'}`}>
                       {passwordRequirements.minLength ? (
@@ -211,7 +211,7 @@ const SetPassword = () => {
                       ) : (
                         <FaTimes className="text-gray-400 flex-shrink-0" />
                       )}
-                      <span>Ít nhất 8 ký tự</span>
+                      <span>At least 8 characters</span>
                     </div>
                     <div className={`flex items-center gap-2 text-xs ${passwordRequirements.hasUpperCase ? 'text-green-600' : 'text-gray-500'}`}>
                       {passwordRequirements.hasUpperCase ? (
@@ -219,7 +219,7 @@ const SetPassword = () => {
                       ) : (
                         <FaTimes className="text-gray-400 flex-shrink-0" />
                       )}
-                      <span>Một chữ hoa (A-Z)</span>
+                      <span>One uppercase letter (A-Z)</span>
                     </div>
                     <div className={`flex items-center gap-2 text-xs ${passwordRequirements.hasLowerCase ? 'text-green-600' : 'text-gray-500'}`}>
                       {passwordRequirements.hasLowerCase ? (
@@ -227,7 +227,7 @@ const SetPassword = () => {
                       ) : (
                         <FaTimes className="text-gray-400 flex-shrink-0" />
                       )}
-                      <span>Một chữ thường (a-z)</span>
+                      <span>One lowercase letter (a-z)</span>
                     </div>
                     <div className={`flex items-center gap-2 text-xs ${passwordRequirements.hasNumber ? 'text-green-600' : 'text-gray-500'}`}>
                       {passwordRequirements.hasNumber ? (
@@ -235,7 +235,7 @@ const SetPassword = () => {
                       ) : (
                         <FaTimes className="text-gray-400 flex-shrink-0" />
                       )}
-                      <span>Một số (0-9)</span>
+                      <span>One number (0-9)</span>
                     </div>
                     <div className={`flex items-center gap-2 text-xs sm:col-span-2 ${passwordRequirements.hasSpecialChar ? 'text-green-600' : 'text-gray-500'}`}>
                       {passwordRequirements.hasSpecialChar ? (
@@ -243,14 +243,14 @@ const SetPassword = () => {
                       ) : (
                         <FaTimes className="text-gray-400 flex-shrink-0" />
                       )}
-                      <span>Một ký tự đặc biệt (!@#$%...)</span>
+                      <span>One special character (!@#$%...)</span>
                     </div>
                   </div>
                   {isPasswordValid && (
                     <div className="mt-2 pt-2 border-t border-gray-200">
                       <p className="text-xs text-green-600 font-semibold flex items-center gap-2">
                         <FaCheck className="flex-shrink-0" />
-                        Mật khẩu đáp ứng tất cả yêu cầu
+                        Password meets all requirements
                       </p>
                     </div>
                   )}
@@ -260,7 +260,7 @@ const SetPassword = () => {
 
             <div>
               <label className="block text-sm font-semibold mb-2 text-primary">
-                Xác nhận mật khẩu
+                Confirm Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -277,7 +277,7 @@ const SetPassword = () => {
                       ? 'border-green-300 bg-green-50'
                       : 'border-gray-300'
                   }`}
-                  placeholder="Nhập lại mật khẩu"
+                  placeholder="Re-enter password"
                   required
                   disabled={loading}
                   minLength={8}
@@ -295,12 +295,12 @@ const SetPassword = () => {
                   {passwordsMatch ? (
                     <p className="text-xs text-green-600 flex items-center gap-1.5">
                       <FaCheck className="flex-shrink-0" />
-                      Mật khẩu khớp
+                      Passwords match
                     </p>
                   ) : (
                     <p className="text-xs text-red-600 flex items-center gap-1.5">
                       <FaTimes className="flex-shrink-0" />
-                      Mật khẩu không khớp
+                      Passwords do not match
                     </p>
                   )}
                 </div>
@@ -315,12 +315,12 @@ const SetPassword = () => {
               {loading ? (
                 <>
                   <FaSpinner className="animate-spin" />
-                  Đang xử lý...
+                  Processing...
                 </>
               ) : (
                 <>
                   <FaCheckCircle />
-                  Xác nhận
+                  Confirm
                 </>
               )}
             </button>
@@ -331,7 +331,7 @@ const SetPassword = () => {
               onClick={() => navigate('/')}
               className="text-sm text-gray-600 hover:text-accent transition-colors"
             >
-              Bỏ qua (có thể đặt sau)
+              Skip (can set later)
             </button>
           </div>
         </div>

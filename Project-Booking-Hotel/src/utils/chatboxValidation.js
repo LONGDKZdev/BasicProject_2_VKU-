@@ -5,32 +5,32 @@
 export const BookingErrors = {
   INVALID_NAME: {
     code: "INVALID_NAME",
-    message: "❌ Vui lòng nhập tên đầy đủ",
+    message: "❌ Please enter your full name",
     vietnamese: "Tên không được để trống",
   },
   INVALID_EMAIL: {
     code: "INVALID_EMAIL",
-    message: "❌ Email không hợp lệ",
+    message: "❌ Invalid email address",
     vietnamese: "Email phải chứa @ và có định dạng đúng",
   },
   INVALID_DATES: {
     code: "INVALID_DATES",
-    message: "❌ Ngày trả phòng phải sau ngày nhận phòng",
+    message: "❌ Check-out date must be after check-in date",
     vietnamese: "Vui lòng kiểm tra lại ngày",
   },
   NO_ROOM: {
     code: "NO_ROOM",
-    message: "❌ Không tìm thấy phòng trùng khớp",
+    message: "❌ No matching room found",
     vietnamese: "Thử từ khóa khác hoặc xem tất cả phòng",
   },
   ROOM_FULL: {
     code: "ROOM_FULL",
-    message: "❌ Phòng này đã đầy cho ngày được chọn",
+    message: "❌ This room is full for the selected dates",
     vietnamese: "Vui lòng chọn ngày khác hoặc phòng khác",
   },
   DATABASE_ERROR: {
     code: "DATABASE_ERROR",
-    message: "❌ Lỗi khi tạo đặt phòng",
+    message: "❌ Error creating booking",
     vietnamese: "Vui lòng thử lại sau",
   },
 };
@@ -53,7 +53,20 @@ export const validateBookingForm = (formData) => {
   }
 
   // Validate dates
-  if (new Date(formData.checkIn) >= new Date(formData.checkOut)) {
+  if (formData.checkIn && formData.checkOut) {
+    const checkInDate = new Date(formData.checkIn);
+    const checkOutDate = new Date(formData.checkOut);
+    
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      errors.push({
+        code: "INVALID_DATE_FORMAT",
+        message: "❌ Invalid date format",
+        vietnamese: "Định dạng ngày không hợp lệ",
+      });
+    } else if (checkInDate >= checkOutDate) {
+      errors.push(BookingErrors.INVALID_DATES);
+    }
+  } else {
     errors.push(BookingErrors.INVALID_DATES);
   }
 
@@ -66,7 +79,7 @@ export const validateBookingForm = (formData) => {
   if (formData.adults < 1 || formData.adults > 10) {
     errors.push({
       code: "INVALID_ADULTS",
-      message: "❌ Số người lớn phải từ 1-10",
+      message: "❌ Number of adults must be between 1-10",
       vietnamese: "Vui lòng nhập lại số người",
     });
   }
@@ -83,14 +96,27 @@ export const validateBookingForm = (formData) => {
 export const validateFilterForm = (formData) => {
   const errors = [];
 
-  if (new Date(formData.checkIn) >= new Date(formData.checkOut)) {
+  if (formData.checkIn && formData.checkOut) {
+    const checkInDate = new Date(formData.checkIn);
+    const checkOutDate = new Date(formData.checkOut);
+    
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      errors.push({
+        code: "INVALID_DATE_FORMAT",
+        message: "❌ Invalid date format",
+        vietnamese: "Định dạng ngày không hợp lệ",
+      });
+    } else if (checkInDate >= checkOutDate) {
+      errors.push(BookingErrors.INVALID_DATES);
+    }
+  } else {
     errors.push(BookingErrors.INVALID_DATES);
   }
 
   if (formData.adults < 1) {
     errors.push({
       code: "INVALID_FILTER",
-      message: "❌ Cần ít nhất 1 người lớn",
+      message: "❌ At least 1 adult required",
       vietnamese: "Vui lòng nhập lại thông tin",
     });
   }
@@ -129,7 +155,7 @@ export const formatErrorMessage = (error) => {
     return error.message;
   }
 
-  return "❌ Có lỗi xảy ra. Vui lòng thử lại!";
+  return "❌ An error occurred. Please try again!";
 };
 
 /**
@@ -207,11 +233,11 @@ export const checkRoomAvailability = (
   checkOut,
   existingBookings = []
 ) => {
-  if (!room) return { available: false, reason: "Phòng không tồn tại" };
+  if (!room) return { available: false, reason: "Room does not exist" };
 
   // Check if room has capacity
   if (room.currentGuests >= room.capacity) {
-    return { available: false, reason: "Phòng đã đầy" };
+    return { available: false, reason: "Room is full" };
   }
 
   // Check for conflicting bookings
@@ -230,7 +256,7 @@ export const checkRoomAvailability = (
   });
 
   if (hasConflict) {
-    return { available: false, reason: "Phòng đã được đặt cho ngày này" };
+    return { available: false, reason: "Room is already booked for these dates" };
   }
 
   return { available: true };
@@ -248,8 +274,8 @@ export const logChatInteraction = (event, data = {}) => {
     ...data,
   };
 
-  // Hiện tại chỉ log ra console, không lưu localStorage
-  // (có thể thay bằng gửi lên Supabase/API analytics trong tương lai)
+  // Currently only log to console, not saving to localStorage
+  // (can be replaced with sending to Supabase/API analytics in the future)
   // eslint-disable-next-line no-console
   console.debug("Chat interaction:", interaction);
 };

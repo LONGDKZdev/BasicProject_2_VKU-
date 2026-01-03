@@ -453,10 +453,43 @@ const RestaurantPage = () => {
     }
 
     const guests = parseInt(reservationForm.guests, 10) || 1;
+    if (isNaN(guests) || guests < 1) {
+      setToast({
+        type: 'error',
+        message: 'Please enter a valid number of guests (at least 1).',
+      });
+      return;
+    }
+    
     // Ensure proper ISO format: YYYY-MM-DDTHH:MM:SS
-    const reservationAt = reservationForm.date && reservationForm.time 
-      ? `${reservationForm.date}T${reservationForm.time}:00` 
-      : `${reservationForm.date}T${reservationForm.time}`;
+    if (!reservationForm.date || !reservationForm.time) {
+      setToast({
+        type: 'error',
+        message: 'Please select both date and time for your reservation.',
+      });
+      return;
+    }
+    
+    // Validate date is not in the past
+    const reservationDate = new Date(`${reservationForm.date}T${reservationForm.time}`);
+    if (isNaN(reservationDate.getTime())) {
+      setToast({
+        type: 'error',
+        message: 'Invalid date or time format. Please select valid values.',
+      });
+      return;
+    }
+    
+    const now = new Date();
+    if (reservationDate < now) {
+      setToast({
+        type: 'error',
+        message: 'Reservation date and time cannot be in the past.',
+      });
+      return;
+    }
+    
+    const reservationAt = `${reservationForm.date}T${reservationForm.time}:00`;
 
     // Require table selection
     if (!selectedTable) {

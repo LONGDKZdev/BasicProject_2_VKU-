@@ -90,6 +90,8 @@ public class AuthController : ControllerBase
     [HttpGet("google/callback")]
     public async Task<IActionResult> GoogleCallback([FromQuery] string code)
     {
+        var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
+        
         try
         {
             if (string.IsNullOrEmpty(code))
@@ -105,12 +107,10 @@ public class AuthController : ControllerBase
                 if (string.IsNullOrWhiteSpace(result.User.Email))
                 {
                     _logger.LogError("Google OAuth returned empty email");
-                    var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
                     return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString("Failed to get email from Google. Please try again.")}");
                 }
                 
                 // Redirect to frontend với user info
-                var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
                 var email = Uri.EscapeDataString(result.User.Email);
                 var name = Uri.EscapeDataString(result.User.Name ?? result.User.Email ?? "User");
                 var redirectUrl = $"{frontendUrl}/auth/callback?provider=google&email={email}&name={name}";
@@ -121,13 +121,11 @@ public class AuthController : ControllerBase
             
             // Nếu không success hoặc User null
             _logger.LogWarning($"Google OAuth failed: Success={result.Success}, User={result.User != null}");
-            var errorFrontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
-            return Redirect($"{errorFrontendUrl}/auth/callback?error={Uri.EscapeDataString(result.Message ?? "Google authentication failed")}");
+            return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString(result.Message ?? "Google authentication failed")}");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in Google callback");
-            var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
             return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString(ex.Message)}");
         }
     }
@@ -138,6 +136,8 @@ public class AuthController : ControllerBase
     [HttpGet("facebook/callback")]
     public async Task<IActionResult> FacebookCallback([FromQuery] string code)
     {
+        var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
+        
         try
         {
             if (string.IsNullOrEmpty(code))
@@ -153,12 +153,10 @@ public class AuthController : ControllerBase
                 if (string.IsNullOrWhiteSpace(result.User.Email))
                 {
                     _logger.LogError("Facebook OAuth returned empty email");
-                    var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
                     return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString("Failed to get email from Facebook. Please try again.")}");
                 }
                 
                 // Redirect to frontend với user info
-                var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
                 var email = Uri.EscapeDataString(result.User.Email);
                 var name = Uri.EscapeDataString(result.User.Name ?? result.User.Email ?? "User");
                 var redirectUrl = $"{frontendUrl}/auth/callback?provider=facebook&email={email}&name={name}";
@@ -169,13 +167,11 @@ public class AuthController : ControllerBase
             
             // Nếu không success hoặc User null
             _logger.LogWarning($"Facebook OAuth failed: Success={result.Success}, User={result.User != null}");
-            var errorFrontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
-            return Redirect($"{errorFrontendUrl}/auth/callback?error={Uri.EscapeDataString(result.Message ?? "Facebook authentication failed")}");
+            return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString(result.Message ?? "Facebook authentication failed")}");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in Facebook callback");
-            var frontendUrl = _configuration["OAuth:RedirectUri"] ?? "http://localhost:5173";
             return Redirect($"{frontendUrl}/auth/callback?error={Uri.EscapeDataString(ex.Message)}");
         }
     }

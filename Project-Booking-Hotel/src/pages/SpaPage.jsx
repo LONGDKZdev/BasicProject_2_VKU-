@@ -234,12 +234,41 @@ const SpaPage = () => {
       return;
     }
 
-    const price = selectedService.price || 100;
-    const duration = selectedService.duration || '60 min';
+    const price = selectedService?.price != null && !isNaN(Number(selectedService.price))
+      ? Number(selectedService.price)
+      : 100;
+    const duration = selectedService?.duration || '60 min';
+    
+    // Validate date and time
+    if (!bookingForm.date || !bookingForm.time) {
+      setToast({
+        type: 'error',
+        message: 'Please select both date and time for your appointment.',
+      });
+      return;
+    }
+    
+    // Validate date is not in the past
+    const appointmentDate = new Date(`${bookingForm.date}T${bookingForm.time}`);
+    if (isNaN(appointmentDate.getTime())) {
+      setToast({
+        type: 'error',
+        message: 'Invalid date or time format. Please select valid values.',
+      });
+      return;
+    }
+    
+    const now = new Date();
+    if (appointmentDate < now) {
+      setToast({
+        type: 'error',
+        message: 'Appointment date and time cannot be in the past.',
+      });
+      return;
+    }
+    
     // Ensure proper ISO format: YYYY-MM-DDTHH:MM:SS
-    const appointmentAt = bookingForm.date && bookingForm.time 
-      ? `${bookingForm.date}T${bookingForm.time}:00` 
-      : `${bookingForm.date}T${bookingForm.time}`;
+    const appointmentAt = `${bookingForm.date}T${bookingForm.time}:00`;
 
     // Verify selected slot is still available
     const slots = await fetchSpaSlotsByDateTime(selectedService.id, appointmentAt, bookingForm.therapist || null);

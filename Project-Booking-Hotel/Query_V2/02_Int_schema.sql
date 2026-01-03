@@ -238,6 +238,79 @@ create index if not exists idx_bookings_user_id on public.bookings(user_id);
 create unique index if not exists idx_bookings_confirmation_code on public.bookings(confirmation_code);
 create trigger set_bookings_updated_at before update on public.bookings for each row execute procedure public.trigger_set_timestamp();
 
+-- ====== PREVENT DOUBLE BOOKING: Function to check room availability ======
+create or replace function public.check_room_availability()
+returns trigger 
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  conflicting_count integer;
+  cutoff_time timestamptz;
+begin
+  -- Only check for active bookings (not cancelled or checked_out)
+  -- pending_payment bookings older than 15 minutes are considered expired
+  cutoff_time := now() - interval '15 minutes';
+  
+  -- Check for overlapping bookings with active status
+  -- IMPORTANT: Use < and > because check_out is exclusive (guest leaves in the morning)
+  -- Example: Booking 1: 27-28 (stays night 27-28, leaves morning 28)
+  --          Booking 2: 28-30 (arrives afternoon 28, stays nights 28-29 and 29-30)
+  --          These should NOT conflict because they don't share the same night
+  -- Logic: check_in < new.check_out AND check_out > new.check_in
+  select count(*) into conflicting_count
+  from public.bookings
+  where room_id = new.room_id
+    and id != coalesce(new.id, '00000000-0000-0000-0000-000000000000'::uuid)
+    and status in ('confirmed', 'checked_in')
+    and check_in < new.check_out
+    and check_out > new.check_in;
+  
+  -- Also check recent pending_payment bookings (within 15 minutes)
+  if conflicting_count = 0 then
+    select count(*) into conflicting_count
+    from public.bookings
+    where room_id = new.room_id
+      and id != coalesce(new.id, '00000000-0000-0000-0000-000000000000'::uuid)
+      and status = 'pending_payment'
+      and created_at > cutoff_time
+      and check_in < new.check_out
+      and check_out > new.check_in;
+  end if;
+  
+  if conflicting_count > 0 then
+    raise exception 'Room is already booked for the selected dates. Please choose different dates or another room.';
+  end if;
+  
+  return new;
+end;
+$$;
+
+-- ====== PREVENT DOUBLE BOOKING: Trigger before insert ======
+drop trigger if exists trigger_check_room_availability_insert on public.bookings;
+create trigger trigger_check_room_availability_insert
+  before insert on public.bookings
+  for each row
+  when (new.status in ('confirmed', 'checked_in', 'pending_payment'))
+  execute function public.check_room_availability();
+
+-- ====== PREVENT DOUBLE BOOKING: Trigger before update ======
+drop trigger if exists trigger_check_room_availability_update on public.bookings;
+create trigger trigger_check_room_availability_update
+  before update on public.bookings
+  for each row
+  when (
+    new.status in ('confirmed', 'checked_in', 'pending_payment')
+    and (
+      old.status != new.status 
+      or old.check_in != new.check_in 
+      or old.check_out != new.check_out
+      or old.room_id != new.room_id
+    )
+  )
+  execute function public.check_room_availability();
+
 -- ====== 10. BOOKING ITEMS ======
 create table if not exists public.booking_items (
   id uuid primary key default gen_random_uuid(),
@@ -452,6 +525,28 @@ create table if not exists public.restaurant_slots (
 create trigger set_restaurant_slots_updated_at before update on public.restaurant_slots for each row execute procedure public.trigger_set_timestamp();
 create index if not exists idx_restaurant_slots_table_time on public.restaurant_slots(table_id, reservation_at);
 
+-- ====== PREVENT DOUBLE BOOKING: Restaurant slot capacity check ======
+create or replace function public.check_restaurant_slot_capacity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.capacity_used > new.capacity_limit then
+    raise exception 'Restaurant slot capacity exceeded. Maximum capacity: %, Current usage: %', 
+      new.capacity_limit, new.capacity_used;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trigger_check_restaurant_slot_capacity on public.restaurant_slots;
+create trigger trigger_check_restaurant_slot_capacity
+  before insert or update on public.restaurant_slots
+  for each row
+  execute function public.check_restaurant_slot_capacity();
+
 -- Availability helper
 create or replace function public.is_restaurant_slot_available(p_table_id uuid, p_time timestamptz, p_guests int)
 returns boolean language sql stable as $$
@@ -494,6 +589,28 @@ create table if not exists public.spa_slots (
 );
 create trigger set_spa_slots_updated_at before update on public.spa_slots for each row execute procedure public.trigger_set_timestamp();
 create index if not exists idx_spa_slots_service_time on public.spa_slots(service_id, appointment_at);
+
+-- ====== PREVENT DOUBLE BOOKING: Spa slot availability check ======
+create or replace function public.check_spa_slot_availability()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status = 'booked' and old.status != 'available' then
+    raise exception 'Spa slot is not available. Current status: %', old.status;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trigger_check_spa_slot_availability on public.spa_slots;
+create trigger trigger_check_spa_slot_availability
+  before update on public.spa_slots
+  for each row
+  when (new.status = 'booked')
+  execute function public.check_spa_slot_availability();
 
 create or replace function public.is_spa_slot_available(p_service_id uuid, p_therapist text, p_time timestamptz)
 returns boolean language sql stable as $$

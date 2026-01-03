@@ -145,11 +145,19 @@ const enhanceRoomsWithReviews = () => {
 
 
 const getPriceBounds = (rooms) => {
-  const prices = rooms.map((room) => room.price);
-  if (prices.length === 0) return { min: 115, max: 545 };
+  if (!rooms || rooms.length === 0) return { min: 115, max: 545 };
+  
+  // Filter out null, undefined, and invalid prices, then convert to numbers
+  const validPrices = rooms
+    .map((room) => room?.price)
+    .filter((price) => price != null && !isNaN(Number(price)))
+    .map((price) => Number(price));
+  
+  if (validPrices.length === 0) return { min: 115, max: 545 };
+  
   return {
-    min: Math.min(...prices),
-    max: Math.max(...prices),
+    min: Math.min(...validPrices),
+    max: Math.max(...validPrices),
   };
 };
 
@@ -169,6 +177,11 @@ const createId = () => {
 const formatDateKey = (date) => {
   if (!date) return "";
   const d = new Date(date);
+  // Check if date is valid
+  if (isNaN(d.getTime())) {
+    console.warn('⚠️ Invalid date in formatDateKey:', date);
+    return "";
+  }
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
     2,
     "0"
@@ -182,16 +195,44 @@ const normalizeDateInput = (value) => {
 
 const addDays = (date, days) => {
   const result = new Date(date);
+  if (isNaN(result.getTime())) {
+    console.warn('⚠️ Invalid date in addDays:', date);
+    return new Date(); // Return current date as fallback
+  }
   result.setDate(result.getDate() + days);
   return result;
 };
 
 const iterateDates = (start, end, callback) => {
-  let cursor = new Date(start);
-  const limit = new Date(end);
-  while (cursor < limit) {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  
+  // Validate dates
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    console.warn('⚠️ Invalid dates in iterateDates:', start, end);
+    return;
+  }
+  
+  if (startDate >= endDate) {
+    console.warn('⚠️ Start date must be before end date:', start, end);
+    return;
+  }
+  
+  // Safety limit to prevent infinite loops
+  const maxIterations = 365; // Max 1 year
+  let iterations = 0;
+  
+  let cursor = new Date(startDate);
+  const limit = new Date(endDate);
+  
+  while (cursor < limit && iterations < maxIterations) {
     callback(new Date(cursor));
     cursor = addDays(cursor, 1);
+    iterations++;
+  }
+  
+  if (iterations >= maxIterations) {
+    console.warn('⚠️ Date range too large in iterateDates, calculation may be incomplete');
   }
 };
 
@@ -389,9 +430,11 @@ export const RoomContext = ({ children }) => {
 
   // Check if a date is a holiday
   const isHoliday = (date) => {
+    if (!Array.isArray(holidayCalendar) || holidayCalendar.length === 0) return null;
     const dateKey = formatDateKey(date);
+    if (!dateKey) return null;
     return holidayCalendar.find(h => 
-      h.is_active && 
+      h && h.is_active && 
       formatDateKey(h.holiday_date) === dateKey
     );
   };
@@ -402,8 +445,12 @@ export const RoomContext = ({ children }) => {
     const holiday = isHoliday(date);
 
     // 1. Filter rules relevant to the room type or all types (room_type_id IS NULL implies all types, but our seeded data links rules to specific types)
+    if (!Array.isArray(priceRules) || priceRules.length === 0) {
+      return { rule: null, holiday: null };
+    }
+    
     const applicableRules = priceRules.filter(rule =>
-      rule.is_active &&
+      rule && rule.is_active &&
       (rule.room_type_id === null || roomTypeId === rule.room_type_id)
     );
 
@@ -420,8 +467,11 @@ export const RoomContext = ({ children }) => {
       }
       
       // Check date range rules (seasonal, holiday defined by date range)
+      // end_date is inclusive in database schema
       if (!isApplied && rule.start_date && rule.end_date) {
-        if (dateKey >= formatDateKey(rule.start_date) && dateKey < formatDateKey(rule.end_date)) {
+        const ruleStartKey = formatDateKey(rule.start_date);
+        const ruleEndKey = formatDateKey(rule.end_date);
+        if (dateKey >= ruleStartKey && dateKey <= ruleEndKey) {
           isApplied = true;
         }
       }
@@ -451,7 +501,20 @@ export const RoomContext = ({ children }) => {
       };
     }
 
-    const roomBasePrice = Number(room.price);
+    // Safely parse room price, fallback to 0 if invalid
+    const roomBasePrice = room.price != null && !isNaN(Number(room.price)) 
+      ? Number(room.price) 
+      : (room.roomTypeId ? 0 : 115); // Fallback: 0 if no roomTypeId, else 115
+    
+    if (roomBasePrice <= 0) {
+      console.warn('⚠️ Invalid room price:', room.price, 'for room:', room.id);
+      return {
+        total: 0,
+        breakdown: [],
+        hourlyRate: 0,
+      };
+    }
+
     const roomTypeId = room.roomTypeId; // Using the newly exposed roomTypeId (UUID)
 
     const breakdown = [];
@@ -473,25 +536,55 @@ export const RoomContext = ({ children }) => {
         // Price field in DB can be:
         // - Multiplier (e.g., 1.15, 1.35) → multiply with base price
         // - Fixed price (e.g., 200, 300) → use directly
-        // Logic: If price is between 0.5 and 10, it's likely a multiplier
-        // Otherwise, it's a fixed price
+        // Logic: 
+        // - If price < 1, it's definitely a multiplier (0.1, 0.5, 0.8)
+        // - If price >= 1 and price <= 50, it's likely a multiplier (1.15, 2.0, 3.5)
+        // - If price > 50, it's likely a fixed price (200, 300, 500)
+        // However, we also check if it's close to basePrice * reasonable multiplier
         const rulePrice = Number(rule.price);
-        const isFixedPrice = rulePrice < 0.5 || rulePrice > 10;
         
-        if (isFixedPrice) {
-          // Fixed price - use directly
-          rate = Math.round(rulePrice);
+        // Validate rulePrice is a valid number
+        if (isNaN(rulePrice) || rulePrice <= 0) {
+          console.warn('⚠️ Invalid price rule value:', rule.price, 'for rule:', rule.id);
+          rate = roomBasePrice; // Fallback to base price
         } else {
-          // Multiplier - multiply with base price
-          rate = Math.round(roomBasePrice * rulePrice);
+          // Check if rulePrice is a reasonable multiplier value
+          // Multipliers are typically between 0.1 and 50
+          // Fixed prices are typically > 50 and don't match basePrice * multiplier pattern
+          const isLikelyMultiplier = rulePrice >= 0.1 && rulePrice <= 50;
+          
+          // If it's a likely multiplier, check if it makes sense as a multiplier
+          // by seeing if the result would be reasonable (not way higher than basePrice * 10)
+          if (isLikelyMultiplier) {
+            const calculatedPrice = roomBasePrice * rulePrice;
+            // If calculated price is reasonable (not absurdly high), treat as multiplier
+            // Reasonable upper limit: basePrice * 10
+            if (calculatedPrice <= roomBasePrice * 10 && calculatedPrice > 0) {
+              rate = Math.round(calculatedPrice);
+            } else {
+              // If multiplier would give absurd result, treat as fixed price
+              rate = Math.round(rulePrice);
+            }
+          } else {
+            // Likely a fixed price (either < 0.1 or > 50)
+            rate = Math.round(rulePrice);
+          }
         }
         
         // Use rule type/description for label
         label = rule.description || `${rule.rule_type} rate`;
       } else if (holiday) {
         // Apply holiday multiplier from holiday_calendar if no specific rule
-        const multiplier = Number(holiday.multiplier) || PRICING_DEFAULTS.holidayMultiplier;
-        rate = Math.round(roomBasePrice * multiplier);
+        const multiplier = holiday.multiplier != null && !isNaN(Number(holiday.multiplier))
+          ? Number(holiday.multiplier)
+          : PRICING_DEFAULTS.holidayMultiplier;
+        
+        if (multiplier > 0 && multiplier <= 10) {
+          rate = Math.round(roomBasePrice * multiplier);
+        } else {
+          console.warn('⚠️ Invalid holiday multiplier:', holiday.multiplier, 'using default');
+          rate = Math.round(roomBasePrice * PRICING_DEFAULTS.holidayMultiplier);
+        }
         label = holiday.name || "Holiday rate";
       }
       
@@ -578,12 +671,14 @@ export const RoomContext = ({ children }) => {
       const matchesPrice = room.price >= minPrice && room.price <= maxPrice;
       const matchesTerm =
         !term ||
-        room.name.toLowerCase().includes(term) ||
-        room.description.toLowerCase().includes(term);
+        (room.name && room.name.toLowerCase().includes(term)) ||
+        (room.description && room.description.toLowerCase().includes(term));
       const matchesType =
         roomTypes.length === 0 || roomTypes.includes(room.type);
       const matchesCategory = !category || room.category === category;
-      const roomAmenities = room.facilities.map((f) => f.name);
+      const roomAmenities = Array.isArray(room.facilities) 
+        ? room.facilities.map((f) => (typeof f === 'string' ? f : f?.name)).filter(Boolean)
+        : [];
       const matchesAmenities =
         amenities.length === 0 ||
         amenities.every((item) => roomAmenities.includes(item));
@@ -704,7 +799,7 @@ export const RoomContext = ({ children }) => {
     );
   };
 
-  const bookRoom = ({
+  const bookRoom = async ({
     roomId,
     roomName,
     userId,
@@ -731,15 +826,31 @@ export const RoomContext = ({ children }) => {
         error: "Please select check-in and check-out dates",
       };
     }
-    if (!isRoomAvailable(roomId, checkIn, checkOut)) {
-      return {
-        success: false,
-        error: "Room is not available for the selected dates",
-      };
-    }
-
+    
+    // Normalize dates FIRST before checking availability
     const normalizedCheckIn = normalizeDateInput(checkIn);
     const normalizedCheckOut = normalizeDateInput(checkOut);
+    
+    if (!normalizedCheckIn || !normalizedCheckOut) {
+      return {
+        success: false,
+        error: "Invalid date format. Please select valid dates.",
+      };
+    }
+    
+    // Check availability - await if async (when dbConnected)
+    // Use normalized dates for accurate comparison
+    const availabilityCheck = isRoomAvailable(roomId, normalizedCheckIn, normalizedCheckOut);
+    const isAvailable = availabilityCheck instanceof Promise 
+      ? await availabilityCheck 
+      : availabilityCheck;
+    
+    if (!isAvailable) {
+      return {
+        success: false,
+        error: "Room is not available for the selected dates. It may have been booked by another user.",
+      };
+    }
 
     const { total, breakdown } = calculatePricingForRoom(
       room,
@@ -751,31 +862,38 @@ export const RoomContext = ({ children }) => {
       .substring(2, 7)
       .toUpperCase()}`;
 
+    // Get roomTypeId for booking items
+    const roomTypeId = room.roomTypeId;
+
     // --- 1. Apply Promotion (if provided) ---
     let discount = 0;
     let finalTotal = total;
     let promo = null;
     let promoError = null;
 
-    if (promoCode) {
+    if (promoCode && typeof promoCode === 'string' && Array.isArray(promotions) && promotions.length > 0) {
       const now = new Date();
       const promoCodeUpper = promoCode.trim().toUpperCase();
       
       // Find promotion with full validation
       promo = promotions.find(p => {
-        if (!p.is_active) return false;
-        if (p.code.toUpperCase() !== promoCodeUpper) return false;
+        if (!p || !p.is_active) return false;
+        if (!p.code || p.code.toUpperCase() !== promoCodeUpper) return false;
         
-        // Check date range
+        // Check date range (end_date is inclusive in database schema)
         const startDate = new Date(p.start_date);
+        startDate.setHours(0, 0, 0, 0); // Start of day
         const endDate = new Date(p.end_date);
+        endDate.setHours(23, 59, 59, 999); // End of day (inclusive)
+        const nowDate = new Date(now);
+        nowDate.setHours(0, 0, 0, 0); // Compare dates only
         
-        if (now < startDate) {
+        if (nowDate < startDate) {
           promoError = `Promotion "${p.code}" starts on ${startDate.toLocaleDateString()}`;
           return false;
         }
-        if (now > endDate) {
-          promoError = `Promotion "${p.code}" expired on ${endDate.toLocaleDateString()}`;
+        if (nowDate > endDate) {
+          promoError = `Promotion "${p.code}" expired on ${new Date(p.end_date).toLocaleDateString()}`;
           return false;
         }
         
@@ -791,11 +909,21 @@ export const RoomContext = ({ children }) => {
         console.warn('⚠ Promotion validation failed:', promoError);
       } else if (promo) {
         // Valid promotion - apply discount
-        if (promo.discount_kind === 'percent') {
-          discount = Math.round(total * (Number(promo.discount_value) / 100));
-        } else if (promo.discount_kind === 'fixed') {
-          discount = Math.min(Number(promo.discount_value), total); // Don't exceed total
+        const discountValue = promo.discount_value != null && !isNaN(Number(promo.discount_value))
+          ? Number(promo.discount_value)
+          : 0;
+        
+        if (discountValue > 0) {
+          if (promo.discount_kind === 'percent') {
+            // Percent discount: validate between 0-100
+            const percent = Math.max(0, Math.min(100, discountValue));
+            discount = Math.round(total * (percent / 100));
+          } else if (promo.discount_kind === 'fixed') {
+            // Fixed discount: don't exceed total
+            discount = Math.min(discountValue, total);
+          }
         }
+        
         finalTotal = total - discount;
         if (finalTotal < 0) finalTotal = 0;
       }

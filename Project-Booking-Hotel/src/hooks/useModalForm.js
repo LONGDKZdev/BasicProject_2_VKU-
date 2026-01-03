@@ -20,10 +20,15 @@ export const useModalForm = (initialFormData) => {
 
   // Open modal for editing existing item
   const openEditModal = useCallback((item) => {
+    if (!item) {
+      console.warn('⚠️ openEditModal called with null/undefined item');
+      return;
+    }
     setEditingItem(item);
-    setFormData(item);
+    // Merge item data with initialFormData to ensure all fields are present
+    setFormData({ ...initialFormData, ...item });
     setIsModalOpen(true);
-  }, []);
+  }, [initialFormData]);
 
   // Close modal
   const closeModal = useCallback(() => {

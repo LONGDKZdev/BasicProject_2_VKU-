@@ -39,14 +39,14 @@ const PromotionsManagement = () => {
     e.preventDefault();
     try {
       const values = {
-        code: formData.code,
-        name: formData.code, // Add name field required by schema
+        code: formData.code && formData.code.trim() ? formData.code.trim().toUpperCase() : null,
+        name: formData.code && formData.code.trim() ? formData.code.trim() : null, // Add name field required by schema
         discount_kind: formData.discount_type === 'percentage' ? 'percent' : 'fixed', // Map to schema field
-        discount_value: parseFloat(formData.discount_value),
-        start_date: formData.start_date || null,
-        end_date: formData.end_date || null,
-        description: formData.description,
-        is_active: formData.is_active
+        discount_value: formData.discount_value && formData.discount_value.trim() ? parseFloat(formData.discount_value) : null,
+        start_date: formData.start_date && formData.start_date.trim() ? formData.start_date : null,
+        end_date: formData.end_date && formData.end_date.trim() ? formData.end_date : null,
+        description: formData.description && formData.description.trim() ? formData.description.trim() : null,
+        is_active: formData.is_active !== undefined ? formData.is_active : true
       };
 
       if (editingItem) {

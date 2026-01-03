@@ -236,35 +236,65 @@ export const fetchAvailableRooms = async (checkIn, checkOut, guests = 1) => {
 
 export const checkRoomAvailability = async (roomId, checkIn, checkOut, excludeBookingId = null) => {
   try {
+    // Normalize dates to YYYY-MM-DD format for comparison
+    const normalizeDate = (date) => {
+      if (!date) return null;
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return null;
+      return d.toISOString().split('T')[0]; // YYYY-MM-DD
+    };
+    
+    const checkInDate = normalizeDate(checkIn);
+    const checkOutDate = normalizeDate(checkOut);
+    
+    if (!checkInDate || !checkOutDate) {
+      console.error('Invalid date format:', { checkIn, checkOut });
+      return false; // Invalid dates = not available
+    }
+    
     // Calculate cutoff time: pending_payment bookings older than 15 minutes are considered expired
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     
+    // Query for overlapping bookings
+    // Overlap condition: check_in < checkOut AND check_out > checkIn
+    // IMPORTANT: Use < and > because check_out is exclusive (guest leaves in the morning)
+    // Example: Booking 1: 27-28 (stays night 27-28, leaves morning 28)
+    //          Booking 2: 28-30 (arrives afternoon 28, stays nights 28-29 and 29-30)
+    //          These should NOT conflict because they don't share the same night
     let query = supabase
       .from('bookings')
-      .select('id, status, created_at')
+      .select('id, status, created_at, check_in, check_out')
       .eq('room_id', roomId)
       .neq('status', 'cancelled')
-      .lt('check_in', checkOut)
-      .gt('check_out', checkIn);
+      .neq('status', 'checked_out')
+      .lt('check_in', checkOutDate)  // Booking starts before requested checkout (exclusive)
+      .gt('check_out', checkInDate); // Booking ends after requested checkin (exclusive)
     
     if (excludeBookingId) {
       query = query.neq('id', excludeBookingId);
     }
     
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      console.error('Error querying bookings:', error);
+      throw error;
+    }
     
     if (!data || data.length === 0) {
+      console.log(`✅ Room ${roomId} is available for ${checkInDate} to ${checkOutDate}`);
       return true; // No bookings found, room is available
     }
+    
+    console.log(`⚠️ Found ${data.length} overlapping bookings for room ${roomId}:`, data);
     
     // Filter out bookings that don't block availability:
     // 1. confirmed or checked_in bookings (always block)
     // 2. pending_payment bookings that are recent (within 15 minutes) - block
     // 3. pending_payment bookings older than 15 minutes - don't block (expired)
-    // 4. cancelled bookings - don't block (already filtered in query)
+    // 4. cancelled/checked_out bookings - don't block (already filtered in query)
     const blockingBookings = data.filter(booking => {
       if (booking.status === 'confirmed' || booking.status === 'checked_in') {
+        console.log(`🚫 Blocking booking: ${booking.id} (${booking.status})`);
         return true; // Always block
       }
       
@@ -272,18 +302,27 @@ export const checkRoomAvailability = async (roomId, checkIn, checkOut, excludeBo
         // Only block if created within last 15 minutes
         const createdAt = new Date(booking.created_at);
         const cutoffTime = new Date(fifteenMinutesAgo);
-        return createdAt > cutoffTime;
+        const isRecent = createdAt > cutoffTime;
+        if (isRecent) {
+          console.log(`🚫 Blocking pending_payment booking: ${booking.id} (created ${createdAt.toISOString()})`);
+        }
+        return isRecent;
       }
       
-      // Other statuses (e.g., 'checked_out') don't block
+      // Other statuses don't block
       return false;
     });
     
     // If no blocking bookings found, room is available
-    return blockingBookings.length === 0;
+    const isAvailable = blockingBookings.length === 0;
+    if (!isAvailable) {
+      console.error(`❌ Room ${roomId} is NOT available. Blocking bookings:`, blockingBookings);
+    }
+    return isAvailable;
   } catch (err) {
-    console.error('Error checking availability:', err);
-    return true; // On error, assume room is available (safer for user experience)
+    console.error('❌ Error checking availability:', err);
+    // On error, return false to be safe (prevent double booking)
+    return false;
   }
 };
 

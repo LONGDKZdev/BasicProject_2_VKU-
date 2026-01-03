@@ -155,6 +155,8 @@ public class AuthService : IAuthService
 
             if (!tokenResponse.IsSuccessStatusCode)
             {
+                var errorContent = await tokenResponse.Content.ReadAsStringAsync();
+                _logger.LogError($"Failed to exchange authorization code: {errorContent}");
                 throw new Exception("Failed to exchange authorization code");
             }
 
@@ -164,13 +166,88 @@ public class AuthService : IAuthService
             var accessToken = tokenData?["access_token"].GetString();
             var idToken = tokenData?["id_token"].GetString();
 
-            if (string.IsNullOrEmpty(idToken))
+            if (string.IsNullOrEmpty(accessToken) && string.IsNullOrEmpty(idToken))
             {
-                throw new Exception("ID token not received");
+                throw new Exception("Access token and ID token not received");
             }
 
-            // Verify and get user info
-            return await HandleGoogleLogin(idToken);
+            // Try to get user info using access token (preferred method)
+            GoogleUserInfo? userInfo = null;
+            
+            if (!string.IsNullOrEmpty(accessToken))
+            {
+                try
+                {
+                    // Use Google UserInfo API to get user information
+                    // Use Authorization header instead of query parameter (more secure)
+                    var request = new HttpRequestMessage(HttpMethod.Get, "https://www.googleapis.com/oauth2/v2/userinfo");
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+                    
+                    var userInfoResponse = await _httpClient.SendAsync(request);
+
+                    if (userInfoResponse.IsSuccessStatusCode)
+                    {
+                        var userInfoContent = await userInfoResponse.Content.ReadAsStringAsync();
+                        var userInfoData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(userInfoContent);
+                        
+                        if (userInfoData != null)
+                        {
+                            userInfo = new GoogleUserInfo
+                            {
+                                Email = userInfoData.ContainsKey("email") ? userInfoData["email"].GetString() ?? string.Empty : string.Empty,
+                                Name = userInfoData.ContainsKey("name") ? userInfoData["name"].GetString() ?? string.Empty : string.Empty,
+                                Picture = userInfoData.ContainsKey("picture") ? userInfoData["picture"].GetString() : null,
+                                Sub = userInfoData.ContainsKey("id") ? userInfoData["id"].GetString() : null
+                            };
+                            
+                            _logger.LogInformation($"Got user info from UserInfo API: {userInfo.Email}");
+                        }
+                    }
+                    else
+                    {
+                        var errorContent = await userInfoResponse.Content.ReadAsStringAsync();
+                        _logger.LogWarning($"UserInfo API returned error: {userInfoResponse.StatusCode} - {errorContent}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to get user info from UserInfo API, trying ID token");
+                }
+            }
+
+            // Fallback: Use ID token if UserInfo API failed
+            if (userInfo == null || string.IsNullOrWhiteSpace(userInfo.Email))
+            {
+                if (!string.IsNullOrEmpty(idToken))
+                {
+                    var verifiedUserInfo = await VerifyGoogleToken(idToken);
+                    if (verifiedUserInfo != null && !string.IsNullOrWhiteSpace(verifiedUserInfo.Email))
+                    {
+                        userInfo = verifiedUserInfo;
+                        _logger.LogInformation($"Got user info from ID token: {userInfo.Email}");
+                    }
+                }
+            }
+
+            // If still no email, throw error
+            if (userInfo == null || string.IsNullOrWhiteSpace(userInfo.Email))
+            {
+                _logger.LogError("Failed to get email from Google OAuth");
+                throw new Exception("Failed to get email from Google. Please ensure you grant email permission.");
+            }
+
+            return new AuthResult
+            {
+                Success = true,
+                User = new UserInfo
+                {
+                    Email = userInfo.Email,
+                    Name = userInfo.Name,
+                    Picture = userInfo.Picture,
+                    Provider = "Google"
+                },
+                Message = "Google login successful"
+            };
         }
         catch (Exception ex)
         {

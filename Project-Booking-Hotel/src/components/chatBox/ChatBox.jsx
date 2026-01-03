@@ -199,6 +199,36 @@ const ChatBox = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  // Load chat history from localStorage when component mounts or user changes
+  useEffect(() => {
+    if (isAuthenticated() && user?.id) {
+      const historyKey = `chat_history_${user.id}`;
+      const savedHistory = localStorage.getItem(historyKey);
+      if (savedHistory) {
+        try {
+          const parsed = JSON.parse(savedHistory);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMessages(parsed);
+          }
+        } catch (err) {
+          console.error('Error loading chat history:', err);
+        }
+      }
+    }
+  }, [isAuthenticated, user?.id]);
+
+  // Save chat history to localStorage whenever messages change
+  useEffect(() => {
+    if (isAuthenticated() && user?.id && messages.length > 0) {
+      const historyKey = `chat_history_${user.id}`;
+      try {
+        localStorage.setItem(historyKey, JSON.stringify(messages));
+      } catch (err) {
+        console.error('Error saving chat history:', err);
+      }
+    }
+  }, [messages, isAuthenticated, user?.id]);
+
   useEffect(() => {
     if (open && messages.length === 0) {
       setTimeout(() => {
@@ -262,16 +292,22 @@ const ChatBox = () => {
           "amenities"
         )} ✨\n\nOther features:\n🎵 Karaoke, 📺 Movie Room, 🌮 24h Food Court`
       );
+      // Keep stage as idle so quick actions remain visible
+      setStage("idle");
     } else if (type === "contact") {
       pushUser("Contact support");
       pushAI(
         "📞 Hotline: 1-800-HOTEL\n📧 Email: support@hotel.com\n💬 24/7 Live chat support\n\nOr leave your phone number and we'll call back!"
       );
+      // Keep stage as idle so quick actions remain visible
+      setStage("idle");
     } else if (type === "promo") {
       pushUser("Special offers");
       pushAI(
         "🎉 Today's Promotions:\n• 15% off for 3+ nights\n• Free room upgrade (available)\n• Breakfast voucher for families\n\nBook now to not miss out!"
       );
+      // Keep stage as idle so quick actions remain visible
+      setStage("idle");
     }
   };
 
@@ -301,12 +337,15 @@ const ChatBox = () => {
           "amenities"
         )}\n\nAre you interested in any other amenities?\n${extra}`.trim()
       );
+      setStage("idle"); // Reset to idle so quick actions remain visible
     } else if (intent === "price") {
       pushAI(getRandomResponse("price_inquiry"));
+      setStage("idle"); // Reset to idle so quick actions remain visible
     } else if (intent === "contact") {
       pushAI(
         "📞 Hotline: 1-800-HOTEL\n📧 Email: support@hotel.com\n\nPlease describe your issue, and I'll guide you through the next steps."
       );
+      setStage("idle"); // Reset to idle so quick actions remain visible
     } else {
       const ctx = getContextFromChat([...messages, { role: "user", text }]);
       const suggestions = generateSuggestions(ctx, stage).join("\n");
@@ -318,6 +357,10 @@ const ChatBox = () => {
           "• Amenities & services\n" +
           (suggestions ? `\nAdditional suggestions:\n${suggestions}` : "")
       );
+      // Reset to idle if not in active booking/filter flow
+      if (stage !== "book" && stage !== "filter" && stage !== "payment") {
+        setStage("idle");
+      }
     }
   };
 
@@ -351,12 +394,26 @@ const ChatBox = () => {
     setStage("book");
   };
 
-  const createBooking = () => {
+  const createBooking = async () => {
     if (!bookingForm.roomName.trim()) {
       pushAI("❌ Please enter a room name or select a room from the list!");
       return;
     }
-    if (bookingForm.checkIn >= bookingForm.checkOut) {
+    // Validate dates
+    if (!bookingForm.checkIn || !bookingForm.checkOut) {
+      pushAI("⚠️ Please select both check-in and check-out dates!");
+      return;
+    }
+    
+    const checkInDate = new Date(bookingForm.checkIn);
+    const checkOutDate = new Date(bookingForm.checkOut);
+    
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+      pushAI("⚠️ Invalid date format. Please select valid dates!");
+      return;
+    }
+    
+    if (checkInDate >= checkOutDate) {
       pushAI("⚠️ Check-out date must be after check-in date!");
       return;
     }
@@ -375,28 +432,29 @@ const ChatBox = () => {
       return;
     }
 
-    const res = bookRoom({
-      roomId: room.id,
-      roomName: room.name,
-      userId: user?.id || "guest",
-      userName: bookingForm.name,
-      userEmail: bookingForm.email,
-      userPhone: bookingForm.phone,
-      checkIn: bookingForm.checkIn,
-      checkOut: bookingForm.checkOut,
-      adults: bookingForm.adults,
-      kids: bookingForm.kids,
-      specialRequests: bookingForm.specialRequests,
-      note: "Booked via AI ChatBox",
-    });
+    try {
+      const res = await bookRoom({
+        roomId: room.id,
+        roomName: room.name,
+        userId: user?.id || "guest",
+        userName: bookingForm.name,
+        userEmail: bookingForm.email,
+        userPhone: bookingForm.phone,
+        checkIn: bookingForm.checkIn,
+        checkOut: bookingForm.checkOut,
+        adults: bookingForm.adults,
+        kids: bookingForm.kids,
+        specialRequests: bookingForm.specialRequests,
+        note: "Booked via AI ChatBox",
+      });
 
-    if (res?.success) {
-      setBookingConfirmed(res.booking);
-      pushAI(
-        `🎉 Booking Details Confirmed!\n\n` +
-          `🛏️ Room: ${room.name}\n` +
-          `📅 Check-in: ${bookingForm.checkIn}\n` +
-          `📅 Check-out: ${bookingForm.checkOut}\n` +
+      if (res?.success) {
+        setBookingConfirmed(res.booking);
+        pushAI(
+          `🎉 Booking Details Confirmed!\n\n` +
+            `🛏️ Room: ${room.name}\n` +
+            `📅 Check-in: ${bookingForm.checkIn}\n` +
+            `📅 Check-out: ${bookingForm.checkOut}\n` +
           `👥 Guests: ${bookingForm.adults} adults, ${bookingForm.kids} children\n` +
           `💰 Total: $${res.booking.totalPrice}\n` +
           `✅ Confirmation Code: ${res.booking.confirmationCode}\n\n` +
@@ -410,6 +468,14 @@ const ChatBox = () => {
       pushAI(
         `❌ Unable to create booking: ${
           res?.error || "Please check your information and try again."
+        }`
+      );
+    }
+    } catch (err) {
+      console.error('Booking error:', err);
+      pushAI(
+        `❌ Unable to create booking: ${
+          err.message || "Room may have been booked by another user. Please try another room or dates."
         }`
       );
     }
@@ -504,8 +570,8 @@ const ChatBox = () => {
                 </div>
               )}
 
-            {/* Quick actions */}
-            {stage === "idle" && messages.length <= 2 && (
+            {/* Quick actions - Show when idle or after user message, but not during active booking flow */}
+            {stage === "idle" && (
               <div className="flex flex-wrap gap-2 p-2">
                 <QuickReply
                   label="🔍 Find Rooms"
